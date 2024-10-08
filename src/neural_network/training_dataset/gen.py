@@ -4,7 +4,7 @@ import numpy as np
 import os
 
 # Define the alphabet and the image size
-alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ".lower()
 image_size = (64, 64)
 
 # Directory to save generated images
@@ -20,7 +20,7 @@ def add_random_variation(image):
     image = image.convert("L")
     
     # 1. Random Rotation
-    angle = random.uniform(0, 359)  # Rotate between -15 and 15 degrees
+    angle = random.uniform(-75, 75)  # Rotate between -15 and 15 degrees
     image = image.rotate(angle, fillcolor="white")
     
     # 2. Gaussian Blur
@@ -56,6 +56,7 @@ for font_path in font_files:
     
     # Load the font at a size suitable for 28x28 images
     font_size = 24  # Adjust this if needed
+    print(f"Using font: {font_name}")
     font = ImageFont.truetype(font_path, font_size)
     
     for letter in alphabet:
@@ -76,13 +77,19 @@ for font_path in font_files:
         draw.text((text_x, text_y), letter, font=font, fill="black")
 
         # Save the image with a name that includes the font name and letter
-        image_filename = f"{letter}_{font_name}.png"
-        image_path = os.path.join(output_dir, letter, image_filename)
+        if letter.islower():
+            image_filename = f"{letter.lower()}_low_{font_name}.png"
+        else:
+            image_filename = f"{letter.lower()}_cap_{font_name}.png"
+        image_path = os.path.join(output_dir, letter.lower(), image_filename)
         image.save(image_path)
         for i in range(5):
             varied_image = add_random_variation(image)
-            varied_filename = f"{letter}_{font_name}_variation_{i}.png"
-            varied_image.save(os.path.join(output_dir, letter, varied_filename))
+            if letter.islower():
+                varied_filename = f"{letter.lower()}_low_{font_name}_variation_{i}.png"
+            else:
+                varied_filename = f"{letter.lower()}_cap_{font_name}_variation_{i}.png"
+            varied_image.save(os.path.join(output_dir, letter.lower(), varied_filename))
             print(f"Saved {varied_filename}")
         
         print(f"Saved {image_path}")
