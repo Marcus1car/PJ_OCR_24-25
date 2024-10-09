@@ -32,8 +32,8 @@ def add_random_variation(image):
     # 4. Artifacts: randomly erase a small region
     if random.random() < 0.3:  # 30% chance to add artifacts
         draw = ImageDraw.Draw(image)
-        rect_x1 = random.randint(0, 60)
-        rect_y1 = random.randint(0, 60)
+        rect_x1 = random.randint(0, 30)
+        rect_y1 = random.randint(0, 30)
         rect_x2 = rect_x1 + random.randint(2, 8)
         rect_y2 = rect_y1 + random.randint(2, 8)
         draw.rectangle([rect_x1, rect_y1, rect_x2, rect_y2], fill="white")
@@ -55,7 +55,7 @@ for font_path in font_files:
     font_name = os.path.splitext(os.path.basename(font_path))[0].lower()
     
     # Load the font at a size suitable for 28x28 images
-    font_size = 24  # Adjust this if needed
+    font_size = 32  # Adjust this if needed
     print(f"Using font: {font_name}")
     font = ImageFont.truetype(font_path, font_size)
     
@@ -65,16 +65,16 @@ for font_path in font_files:
         draw = ImageDraw.Draw(image)
         
         # Calculate the position to center the text
-        text_bbox = draw.textbbox((0,0), letter, font=font)
+        text_bbox = draw.textbbox((0,0), letter, font=font, anchor="mb")
         text_width = text_bbox[2] - text_bbox[0]
         text_height = text_bbox[3] - text_bbox[1]
 
         # Calculate the position to center the text
         text_x = (image_size[0] - text_width) // 2
-        text_y = (image_size[1] - text_height) // 2
+        text_y = (image_size[1] - text_height) // 2 
 
         # Draw the letter onto the image
-        draw.text((text_x, text_y), letter, font=font, fill="black")
+        draw.text((text_x, text_y), letter, font=font, fill="black", anchor="mb")
 
         # Save the image with a name that includes the font name and letter
         if letter.islower():
