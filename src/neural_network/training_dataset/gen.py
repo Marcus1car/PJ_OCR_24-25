@@ -5,7 +5,7 @@ import os
 
 # Define the alphabet and the image size
 alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ".lower()
-image_size = (64, 64)
+image_size = (32, 32)
 
 # Directory to save generated images
 output_dir = "images"
@@ -39,7 +39,7 @@ def add_random_variation(image):
         draw.rectangle([rect_x1, rect_y1, rect_x2, rect_y2], fill="white")
         
     if random.random() < 0.5:  # 50% chance to add noise
-        noise = np.random.normal(0, 25, (64, 64))  # Mean = 0, Stddev = 25
+        noise = np.random.normal(0, 25, (32, 32))  # Mean = 0, Stddev = 25
         noise_img = np.array(image).astype(np.float32) + noise
         noise_img = np.clip(noise_img, 0, 255).astype(np.uint8)
         image = Image.fromarray(noise_img)
