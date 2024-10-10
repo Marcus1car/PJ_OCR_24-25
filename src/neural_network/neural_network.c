@@ -170,15 +170,15 @@ int main() {
         printf("Input: %f %f, Expected: %f, Predicted: %f\n", inputs[i][0], inputs[i][1], targets[i][0], output[0]);
     }
     int correct_predictions = 0;
-for (int i = 0; i < num_samples; i++) {
-    forward(nn, inputs[i], output);
-    int predicted = output[0] > 0.5 ? 1 : 0; // Assuming threshold of 0.5
-    if (predicted == (int)targets[i][0]) {
-        correct_predictions++;
+    for (int i = 0; i < num_samples; i++) {
+        forward(nn, inputs[i], output);
+        int predicted = output[0] > 0.5 ? 1 : 0; // Assuming threshold of 0.5
+        if (predicted == (int)targets[i][0]) {
+            correct_predictions++;
+        }
     }
-}
-double accuracy = (double)correct_predictions / num_samples * 100;
-printf("Accuracy: %.2f%%\n", accuracy);
+    double accuracy = (double)correct_predictions / num_samples * 100;
+    printf("Accuracy: %.2f%%\n", accuracy);
 
     // Free dynamically allocated memory
     for (int i = 0; i < num_samples; i++) {

@@ -34,13 +34,11 @@ typedef struct Network {
     size_t n_outputs;
 } Network;
 
-typedef double (*RandFcn)();
 Network* network_init(
     Network* network,
     size_t n_inputs,
     size_t n_hidden,
-    size_t n_outputs,
-    RandFcn rand);
+    size_t n_outputs);
 void network_free(Network* network);
 void network_predict(Network* network, double* input);
 

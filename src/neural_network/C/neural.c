@@ -29,8 +29,8 @@ Network* network_init(
     Network* network,
     size_t n_inputs,
     size_t n_hidden,
-    size_t n_outputs,
-    RandFcn rand) {
+    size_t n_outputs)
+    {
     network->n_inputs = n_inputs;
     network->n_hidden = n_hidden;
     network->n_outputs = n_outputs;
@@ -56,11 +56,11 @@ Network* network_init(
 
     // initialize everything but the biases
     for (size_t i = 0; i < n_inputs * n_hidden; i++) {
-        network->weights_hidden[i] = rand() - 0.5;
+        network->weights_hidden[i] = ((double)rand() / (RAND_MAX / 2) - 1.) / 2.;
     }
 
     for (size_t i = 0; i < n_hidden * n_outputs; i++) {
-        network->weights_output[i] = rand() - 0.5;
+        network->weights_output[i] = ((double)rand() / (RAND_MAX / 2) - 1.) / 2.;
     }
 
     return network;
@@ -103,10 +103,10 @@ Trainer* trainer_init(Trainer* trainer, Network* network) {
     return trainer;
 }
 
-void trainer_train(Trainer* trainer, Network* network, double* input, double* y, double lr) {
+void trainer_train(Trainer* trainer, Network* network, double* input, double* target, double lr) {
     network_predict(network, input);
     for (size_t c = 0; c < network->n_outputs; c++) {
-        trainer->grad_output[c] = (network->output[c] - y[c]) * sigmoid_prim(network->output[c]);
+        trainer->grad_output[c] = (network->output[c] - target[c]) * sigmoid_prim(network->output[c]);
     }
 
     for (size_t r = 0; r < network->n_hidden; r++) {

@@ -45,7 +45,7 @@ const int ITERS = 4000;
 
 int main() {
     Network network = {0};
-    network_init(&network, 2, 2, 6, Rand);
+    network_init(&network, 2, 2, 6);
     Trainer trainer = {0};
     trainer_init(&trainer, &network);
     double inputs[4][2] = {
