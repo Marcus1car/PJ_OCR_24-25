@@ -15,6 +15,13 @@
 #define HIDDEN_LAYER_SIZE 128 // Arbitrary
 #define OUTPUT_LAYER_SIZE 26
 
+double* get_target(char* filename)
+{
+    double *res = calloc(26,sizeof(double));
+    res[filename[0]-'a'] = 1;
+    return res;
+}
+
 Uint8 calculate_otsu_threshold(SDL_Surface *surface)
 {
     int width = surface->w;
@@ -69,6 +76,19 @@ Uint8 calculate_otsu_threshold(SDL_Surface *surface)
     }
 
     return threshold;
+}
+void swap(double **a, double **b) {
+    double *temp = *a;
+    *a = *b;
+    *b = temp;
+}
+void shuffle(double **array1,double **array2, size_t size) {
+    srand(time(NULL));
+    for (int i = size - 1; i > 0; i--) {
+        int j = rand() % (i + 1);
+        swap(&array1[i], &array1[j]);
+        swap(&array2[i], &array2[j]);
+    }
 }
 
 double *load_image_bw(char *path)
@@ -173,6 +193,27 @@ int main(int argc, char **argv)
 
     double **training_data = calloc(sample_training_size, sizeof(double*));
     double **testing_data = calloc(sample_testing_size, sizeof(double*));
+
+    double **targeted_data = calloc(sample_testing_size, sizeof(double*));
+    idx = 0;
+    while (idx < sample_training_size) 
+    {
+        char* path1 = calloc(strlen(argv[1])+1+strlen(training_img_path[idx])+1, sizeof(char));
+        char* path2 = calloc(strlen(argv[2])+1+strlen(testing_img_path[idx])+1, sizeof(char));
+        strcpy(path1, argv[1]);
+        strcat(path1, "/");
+        strcat(path1, training_img_path[idx]);
+
+        strcpy(path2, argv[2]);
+        strcat(path2, "/");
+        strcat(path2, testing_img_path[idx]);
+        
+        training_data[idx] = load_image_bw(path1);
+        testing_data[idx] = load_image_bw(path2);
+        targeted_data[idx] = get_target(path1);
+        idx++;
+    }
+    shuffle(training_data,targeted_data,sample_testing_size);
 
     return EXIT_SUCCESS;
 }
