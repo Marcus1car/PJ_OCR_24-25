@@ -25,6 +25,26 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 static double sigmoid(double f) { return 1.0 / (1.0 + exp(-f)); }
 static double sigmoid_prim(double f) { return f * (1.0 - f); }
 
+void softmax(double *input, double *output, int n) {
+    double max = input[0];
+    for (int i = 1; i < n; i++) {
+        if (input[i] > max) {
+            max = input[i];
+        }
+    }
+
+    double sum = 0.0;
+    for (int i = 0; i < n; i++) {
+        output[i] = exp(input[i] - max);
+        sum += output[i];
+    }
+
+    for (int i = 0; i < n; i++) {
+        output[i] /= sum;
+    }
+}
+
+
 Network* network_init(
     Network* network,
     size_t n_inputs,
@@ -92,6 +112,7 @@ void network_predict(Network* network, double* input) {
         }
 
         network->output[c] = sigmoid(sum + network->biases_output[c]);
+        //softmax(network->output, network->output, network->n_outputs);
     }
 }
 
@@ -143,3 +164,46 @@ void trainer_free(Trainer* trainer) {
     free(trainer->grad_hidden);
     free(trainer->grad_output);
 }
+
+void print_network(const Network* network) {
+    printf("weights hidden:\n");
+    for (size_t i = 0; i < network->n_inputs; i++) {
+        for (size_t j = 0; j < network->n_hidden; j++) {
+            printf(" %9.6f", network->weights_hidden[network->n_inputs * i + j]);
+        }
+
+        printf("\n");
+    }
+
+    printf("biases hidden:\n");
+    for (size_t i = 0; i < network->n_hidden; i++) {
+        printf(" %9.6f", network->biases_hidden[i]);
+    }
+
+    printf("\n");
+
+    printf("weights output:\n");
+    for (size_t i = 0; i < network->n_hidden; i++) {
+        for (size_t j = 0; j < network->n_outputs; j++) {
+            printf(" %9.6f", network->weights_output[i * network->n_outputs + j]);
+        }
+
+        printf("\n");
+    }
+
+    printf("biases output:\n");
+    for (size_t i = 0; i < network->n_outputs; i++) {
+        printf(" %9.6f", network->biases_output[i]);
+    }
+
+    printf("\n");
+}
+
+void save_weights(Network* network, const char* path){
+
+}
+
+void load_weights(Network* network, const char* path){
+
+}
+
