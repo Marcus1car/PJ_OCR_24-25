@@ -135,13 +135,18 @@ int main(int argc, char **argv) {
     if (argc != 3)
         errx(EXIT_FAILURE, "Usage: ./solver <grid_file> <researched word>");
     char *resword = calloc(strlen(argv[2]) + 1, sizeof(char));
-    strcpy(resword, ConvertWordToLower(argv[2]));
+    char* test = ConvertWordToLower(argv[2]);
+    strcpy(resword, test);
+    free(test);
     int nblignetab = CountNumLines(argv[1]);
     if (nblignetab == -1) {
         free(resword);
         return 1;
     }
-    char **tableau = ConvertToLowerGrid(ReadGridFromFile(argv[1], &nblignetab),nblignetab);
+    char** grid_file = ReadGridFromFile(argv[1], &nblignetab);
+    char **tableau = ConvertToLowerGrid(grid_file,nblignetab);
+    for(size_t k = 0; k < nblignetab; k++) free(grid_file[k]);
+    free(grid_file);
     if (tableau == NULL) {
         free(resword);
         return 1;
