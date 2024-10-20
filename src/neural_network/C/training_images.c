@@ -244,10 +244,9 @@ int main(int argc, char **argv)
     if(training_steps <= 0) errx(EXIT_FAILURE, "Training step invalid");
 
     Network *network = network_init(INPUT_LAYER_SIZE, HIDDEN_LAYER_SIZE, OUTPUT_LAYER_SIZE, hidden_fct, output_fct);  
-    Trainer *trainer = calloc(1, sizeof(Trainer));
-    if(trainer == NULL)
-        errx(EXIT_FAILURE, "jaaj2");
-    trainer_init(trainer, network);
+    Trainer *trainer = trainer_init(network);
+    if(trainer == NULL || network == NULL)
+        errx(EXIT_FAILURE, "Error while allocating network and trainer");
 
     DIR *training_directory = opendir(argv[4]);
 

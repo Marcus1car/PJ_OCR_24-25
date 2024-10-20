@@ -290,10 +290,17 @@ void is_network_dead(Network *network)
     }
 }
 
-Trainer *trainer_init(Trainer *trainer, Network *network)
+Trainer *trainer_init(Network *network)
 {
+    Trainer* trainer = malloc(sizeof(Trainer));
+    if(trainer == NULL){
+        errx(EXIT_FAILURE, "Error while allocating memory");
+    }
     trainer->grad_hidden = calloc(network->n_hidden, sizeof(*trainer->grad_hidden));
     trainer->grad_output = calloc(network->n_outputs, sizeof(*trainer->grad_output));
+    if(trainer->grad_hidden == NULL || trainer->grad_output == NULL){
+        errx(EXIT_FAILURE, "Error while allocating memory");
+    }
     return trainer;
 }
 
@@ -351,6 +358,8 @@ void trainer_free(Trainer *trainer)
 {
     free(trainer->grad_hidden);
     free(trainer->grad_output);
+    free(trainer);
+    trainer = NULL;
 }
 
 void print_network(const Network *network)

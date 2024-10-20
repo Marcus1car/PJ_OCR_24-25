@@ -16,41 +16,11 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 CC = gcc
-CC_FLAGS = -lm -Wall -Wextra 
-
-# Final binary
-BIN = cmain
-
-# Put all auto generated stuff to this build dir.
-BUILD_DIR = ./build
-
-# List of all .c source files.
-CCS = main.c $(wildcard *.c)
-
-# All .o files go to build dir.
-OBJ = $(CCS:%.c=$(BUILD_DIR)/%.o)
-
-# Gcc/Clang will create these .d files containing dependencies.
-DEP = $(OBJ:%.o=%.d)
-
-# Default target named after the binary.
-$(BIN) : $(BUILD_DIR)/$(BIN)
-
-# Actual target of the binary - depends on all .o files.
-$(BUILD_DIR)/$(BIN) : $(OBJ)
-	mkdir -p $(@D)
-	$(CC) $(CC_FLAGS) $^ -o $@
-
-# Include all .d files
--include $(DEP)
-
-# Build target for every single object file.
-# The potential dependency on header files is covered
-# by calling `-include $(DEP)`.
-$(BUILD_DIR)/%.o : %.c
-	mkdir -p $(@D)
-	$(CC) $(CC_FLAGS) -MMD -c $< -o $@
+CC_FLAGS = -Wall -Wextra -std=c11 -fsanitize=address
+LIBS = -lm
+DEPS = neural.c
+poc:
+	$(CC) $(CC_FLAGS) $(DEPS) main.c -o poc $(LIBS)
 
 .PHONY : clean
-clean :
-	-rm $(BUILD_DIR)/$(BIN) $(OBJ) $(DEP)
+
