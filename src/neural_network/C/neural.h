@@ -1,27 +1,16 @@
-/*
-Licensed under the MIT License given below.
-Copyright 2023 Daniel Lidstrom
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the “Software”), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software is furnished to do so,
-subject to the following conditions:
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-#if !defined(NEURAL_H)
+#ifndef NEURAL_H
 #define NEURAL_H
 
 #include <stdlib.h>
+typedef enum ActivationFunction {
+    SOFTMAX,
+    SIGMOID,
+    RELU,
+    ELU,
+    LRELU,
+    TANH
 
+} ActivationFunction;
 typedef struct Network {
     double* weights_hidden;
     double* biases_hidden;
@@ -29,16 +18,25 @@ typedef struct Network {
     double* biases_output;
     double* hidden;
     double* output;
+    enum ActivationFunction hidden_activation;
+    enum ActivationFunction ouput_activation;
+    //function pointer should be faster than checking manually at each training step which function to use
+    double (*hidden_fct) (double);
+    double (*output_fct) (double);
+    double (*d_hidden_fct) (double);
+    double (*d_output_fct) (double);
     size_t n_inputs;
     size_t n_hidden;
     size_t n_outputs;
 } Network;
 
 Network* network_init(
-    Network* network,
     size_t n_inputs,
     size_t n_hidden,
-    size_t n_outputs);
+    size_t n_outputs,
+    enum ActivationFunction activation_hidden, 
+    enum ActivationFunction activation_output
+    );
 void network_free(Network* network);
 void network_predict(Network* network, double* input);
 
@@ -46,9 +44,12 @@ typedef struct Trainer {
     double* grad_hidden;
     double* grad_output;
 } Trainer;
+void print_network(const Network* network);
 
 Trainer* trainer_init(Trainer* trainer, Network* network);
 void trainer_train(Trainer* trainer, Network* network, double* input, double* output, double lr);
 void trainer_free(Trainer* trainer);
+void save_nn_data(Network* network, const char* path);
+void is_network_dead(Network* network);
 
 #endif

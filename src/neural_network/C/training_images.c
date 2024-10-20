@@ -26,23 +26,17 @@ double* get_target(char* filename)
 
 Uint8 calculate_otsu_threshold(SDL_Surface *surface)
 {
-    //printf("jaajruresaslol 1 jaaj %s\n",surface->format);
-
     int width = surface->w;
     int height = surface->h;
-    //printf("jaajruresaslol 2\n");
 
     Uint32 *pixels = (Uint32 *)surface->pixels;
-    //printf("jaajruresaslol 3\n");
 
     int histogram[256] = {0};
-    //printf("jaajruresaslol 4\n");
 
     for (int y = 0; y < height; y++)
     {
         for (int x = 0; x < width; x++)
         {
-   // printf("jaajruresaslol64 %d %d\n", x, y);
 
             Uint32 pixel = pixels[(y * width) + x];
             Uint8 r, g, b;
@@ -53,8 +47,6 @@ Uint8 calculate_otsu_threshold(SDL_Surface *surface)
             histogram[gray]++;
         }
     }
-   // printf("jaajruresaslol 5\n");
-
     int total_pixels = width * height;
     int sumB = 0;
     int wB = 0;
@@ -108,28 +100,21 @@ void shuffle(double **array1,double **array2, size_t size) {
 
 double *load_image_bw(char *path)
 {
-    //printf("dans fct1\n");
-
     SDL_Surface *aaa = IMG_Load(path);
     SDL_Surface *img = SDL_ConvertSurfaceFormat(aaa, SDL_PIXELFORMAT_RGB888, 0);
     if (SDL_MUSTLOCK(img))
     {
         SDL_LockSurface(img);
     }
-   // printf("dans fct1\n");
     Uint32 *pixels = (Uint32 *)img->pixels;
-    //printf("dans fctffff1\n");
 
     int width = img->w;
     int height = img->h;
-   // printf("dans fctfffffffffffffffffeefefe1\n");
 
     if (height != IMG_H || width != IMG_W)
         err(EXIT_FAILURE, "Img with path %s doesn't have the required dimensions.", path);
-   // printf("dans fct555fffffffffffffffffffffffffffffffffffffffffffzzz51\n");
 
-    //Uint8 threshold = calculate_otsu_threshold(img);
-    //printf("dans fct55551\n");
+    Uint8 threshold = calculate_otsu_threshold(img);
 
     double *array = calloc(IMG_W * IMG_H, sizeof(double));
     for (int y = 0; y < height; y++)
@@ -139,23 +124,26 @@ double *load_image_bw(char *path)
             Uint32 pixel = pixels[(y * width) + x];
             Uint8 r, g, b;
             SDL_GetRGB(pixel, img->format, &r, &g, &b);
-           // Uint8 gray = (Uint8)(0.299 * r + 0.587 * g + 0.114 * b);
-            //Uint32 bw_pixel = gray > threshold ? SDL_MapRGB(img->format, 255, 255, 255)
-            //                                   : SDL_MapRGB(img->format, 0, 0, 0);
+            double gray2 = (double)(0.299 * r  + 0.587 * g  + 0.114 * b )/255;
 
-            //pixels[(y * width) + x] = bw_pixel;
+            /*
+            Uint8 gray = (Uint8)(0.299 * r + 0.587 * g + 0.114 * b);
+            Uint32 bw_pixel = gray > threshold ? SDL_MapRGB(img->format, 255, 255, 255)
+                                               : SDL_MapRGB(img->format, 0, 0, 0);
+
+            pixels[(y * width) + x] = bw_pixel;
+            */
             SDL_GetRGB(pixel, img->format, &r, &g, &b);
-            array[y * IMG_W + x] = ((double)g) / 255;
+            //replace g for
+            array[y * IMG_W + x] = ((double)gray2) ;
+            
         }
     }
-    //printf("dans icici coucou\n");
-
 
     if (SDL_MUSTLOCK(img))
     {
         SDL_UnlockSurface(img);
     }
-    //printf("dans icici bquoichoufh\n");
 
     return array;
 }
@@ -237,6 +225,7 @@ void print_current_iter(const Network* net, const char current_letter, const siz
         printf("\033[31m\033[1m%d\033[0m", rank);
 
     }
+    if(net->output[current_letter - 'A'] < (double)0.5 && rank == 1) printf(" \033[31m\033[1mERROR PROBA\033[0m");
     printf("\n");
     printf("-----\n");
 
@@ -245,24 +234,27 @@ void print_current_iter(const Network* net, const char current_letter, const siz
 
 int main(int argc, char **argv)
 {
-    if (argc != 3)
-        errx(EXIT_FAILURE, "Usage: ./training <training_dataset_directory> <testing_dataset_directory> TRAILING SLASH IS REQUIRED SINON CA MARCHE PAS JAIME PAS LE C");
+    if (argc != 6)
+        errx(EXIT_FAILURE, "Usage: ./training <hidden_fct> <output_fct> <training_steps> <training_dataset_directory> <testing_dataset_directory> TRAILING SLASH IS REQUIRED SINON CA MARCHE PAS JAIME PAS LE C");
+    ActivationFunction hidden_fct = (ActivationFunction) atoi(argv[1]);
+    ActivationFunction output_fct = (ActivationFunction) atoi(argv[2]);
+    int training_steps = atoi(argv[3]);
+    if(hidden_fct <= SOFTMAX || hidden_fct > TANH) errx(EXIT_FAILURE, "Hidden activation fct invalid. %d \nSOFTMAX \t= 0\nSIGMOID \t= 1\n\n\n", hidden_fct);
+    if(output_fct < SOFTMAX || output_fct > TANH) errx(EXIT_FAILURE, "Output activation fct invalid. \nSOFTMAX \t= 0\nSIGMOID \t= 1\n\n\n");
+    if(training_steps <= 0) errx(EXIT_FAILURE, "Training step invalid");
 
-    Network *network = calloc(1, sizeof(Network));
-    if(network == NULL)
-        errx(EXIT_FAILURE, "jaaj");
-    network_init(network, INPUT_LAYER_SIZE, HIDDEN_LAYER_SIZE, OUTPUT_LAYER_SIZE);
+    Network *network = network_init(INPUT_LAYER_SIZE, HIDDEN_LAYER_SIZE, OUTPUT_LAYER_SIZE, hidden_fct, output_fct);  
     Trainer *trainer = calloc(1, sizeof(Trainer));
     if(trainer == NULL)
         errx(EXIT_FAILURE, "jaaj2");
     trainer_init(trainer, network);
 
-    DIR *training_directory = opendir(argv[1]);
+    DIR *training_directory = opendir(argv[4]);
 
     if (training_directory == NULL)
         err(EXIT_FAILURE, "Error while opening training directory");
 
-    DIR *testing_directory = opendir(argv[2]);
+    DIR *testing_directory = opendir(argv[5]);
 
     if (testing_directory == NULL)
         err(EXIT_FAILURE, "Error while opening testing directory");
@@ -286,17 +278,19 @@ int main(int argc, char **argv)
     closedir(testing_directory);
     closedir(training_directory);
 
-   // printf("sample1 sample2 %d %d\n", sample_testing_size, sample_training_size);
-
     char **training_img_path = calloc(sample_training_size, sizeof(char *));
     char **testing_img_path = calloc(sample_testing_size, sizeof(char *));
 
-    training_directory = opendir(argv[1]);
+    if(training_img_path == NULL || testing_img_path == NULL){
+        errx(EXIT_FAILURE, "Error while allocating memory");
+    }
+
+    training_directory = opendir(argv[4]);
 
     if (training_directory == NULL)
         err(EXIT_FAILURE, "Error while opening training directory");
 
-    testing_directory = opendir(argv[2]);
+    testing_directory = opendir(argv[5]);
 
     if (testing_directory == NULL)
         err(EXIT_FAILURE, "Error while opening testing directory");
@@ -304,12 +298,12 @@ int main(int argc, char **argv)
     size_t idx = 0;
     while ((entry = readdir(training_directory)) != NULL)
     {
-        //printf("Jaaj %s\n", entry->d_name);
         if(entry->d_name[0] == '.') continue;
         training_img_path[idx] = calloc(strlen(entry->d_name)+1, sizeof(char));
-        //printf("different de noune %d -strlen %d string: %s\n", training_img_path!=NULL, strlen(training_img_path[idx]),training_img_path[idx]);
-        strcpy(training_img_path[idx], entry->d_name); // putain de ta mere pq ca bug
-        //printf("icijaaj\n");
+        if(training_img_path[idx] == NULL){
+            errx(EXIT_FAILURE, "Error while allocating memory");
+        }
+        strcpy(training_img_path[idx], entry->d_name);
         idx++;
     }
 
@@ -325,7 +319,6 @@ int main(int argc, char **argv)
 
     closedir(testing_directory);
     closedir(training_directory);
-        //printf("JAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJ\n");
 
     double **training_data = calloc(sample_training_size, sizeof(double*));
     double **testing_data = calloc(sample_testing_size, sizeof(double*));
@@ -334,35 +327,17 @@ int main(int argc, char **argv)
     idx = 0;
     while (idx < sample_training_size) 
     {
-                     // printf("JAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJ\n");
-
-
-        char* path1 = /*callloc(12*1024, sizeof(char));*/calloc(strlen(argv[1])+1+strlen(training_img_path[idx])+1, sizeof(char));
-        //printf("JAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJ\n");
-
-        char* path2 = /*callloc(12*1024, sizeof(char));*/calloc(strlen(argv[2])+1+strlen(testing_img_path[idx])+1, sizeof(char));
-        strcpy(path1, argv[1]);
-        //printf("JAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJ1\n");
-
-        
-        //printf("JAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJ2\n");
+        char* path1 = /*callloc(12*1024, sizeof(char));*/calloc(strlen(argv[4])+1+strlen(training_img_path[idx])+1, sizeof(char));
+        char* path2 = /*callloc(12*1024, sizeof(char));*/calloc(strlen(argv[5])+1+strlen(testing_img_path[idx])+1, sizeof(char));
+        strcpy(path1, argv[4]);
 
         strcat(path1, training_img_path[idx]);
-        //printf("JAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJ3\n");
 
-        strcpy(path2, argv[2]);
+        strcpy(path2, argv[5]);
         
         strcat(path2, testing_img_path[idx]);
-        //printf("JAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJ4\n");
-
-        //printf("stringjaaj loading path1=%s path2=%s\n", path1, path2);
-        //training_data[idx] = callloc(IMG_H * IMG_W, sizeof(double));
         training_data[idx] = load_image_bw(path1);
-        //printf("JAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJ5\n");
-
-        //testing_data[idx] = callloc(IMG_H * IMG_W, sizeof(double));
         testing_data[idx] = load_image_bw(path2);
-        //targeted_data[idx] = callloc(26, sizeof(double));
         targeted_data[idx] = get_target(training_img_path[idx]);
         free(path1);
         free(path2);
@@ -370,14 +345,14 @@ int main(int argc, char **argv)
     }
   //  shuffle(training_data,targeted_data,sample_testing_size);
 
-    size_t idx_2 = 150;
-    for(size_t i = 0; i <= idx_2; i++){
+    //size_t idx_2 = training_steps;
+    for(size_t i = 0; i < (size_t)training_steps; i++){
         shuffle(training_data,targeted_data,sample_training_size);
         printf("Current iter: %ld\n", i);
         for (size_t j = 0; j < sample_training_size; j++)
         {
             trainer_train(trainer,network,training_data[j],targeted_data[j],0.1);
-            if(i == idx_2) print_current_iter(network, indexOfMax(targeted_data[j], 26)+'A' , j, idx_2*sample_training_size);
+            if(i == training_steps-1) print_current_iter(network, indexOfMax(targeted_data[j], 26)+'A' , j, training_steps*sample_training_size);
             //j++;
             //coun++;
         //printf("%d %d \n", i, j);
@@ -388,6 +363,10 @@ int main(int argc, char **argv)
     //print_network(network);
 
     //free
+    //print_network(network);
+    printf("JAJRURESASLOL\n");
+
+    //save_nn_data(network, "./test_save.data");
 
     for(size_t i = 0; i < sample_training_size; i++){
         free(targeted_data[i]);
@@ -409,7 +388,7 @@ int main(int argc, char **argv)
     trainer_free(trainer);
     network_free(network);
 
-    free(network);
+    //free(network);
     free(trainer);
     return EXIT_SUCCESS;
 }

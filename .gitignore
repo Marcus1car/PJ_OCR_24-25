@@ -3,3 +3,7 @@
 .DS_FILE/
 *.old
 *.Identifier
+a.out
+*.d
+*.o
+.vscode/
