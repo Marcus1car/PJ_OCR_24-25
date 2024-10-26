@@ -7,3 +7,4 @@ a.out
 *.d
 *.o
 .vscode/
+build/
