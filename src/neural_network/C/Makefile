@@ -1,26 +1,16 @@
-# Licensed under the MIT License given below.
-# Copyright 2023 Daniel Lidstrom
-# Permission is hereby granted, free of charge, to any person obtaining a copy of
-# this software and associated documentation files (the “Software”), to deal in
-# the Software without restriction, including without limitation the rights to
-# use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
-# the Software, and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-# FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 CC = gcc
-CC_FLAGS = -Wall -Wextra -std=c11 -fsanitize=address
+CC_FLAGS = -Wall -Wextra -std=c17 -fsanitize=address -g
 LIBS = -lm
+SDL_LIBS = -lSDL2 -lSDL2_image
+BUILD_DIR = ./build
 DEPS = neural.c
-poc:
-	$(CC) $(CC_FLAGS) $(DEPS) main.c -o poc $(LIBS)
 
-.PHONY : clean
+build_dir:
+	mkdir -p $(BUILD_DIR)
+poc: build_dir
+	$(CC) $(CC_FLAGS) $(DEPS) poc.c -o build/poc $(LIBS)
+
+training_images: build_dir
+	$(CC) $(CC_FLAGS) $(DEPS) training_images.c -o build/training_images $(LIBS) $(SDL_LIBS)
+#.PHONY : clean
 
