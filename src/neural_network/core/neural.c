@@ -2,11 +2,11 @@
 
 #include <err.h>
 #include <math.h>
+#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <stdio.h>
 
 // #include <omp.h>
 
@@ -201,60 +201,74 @@ void network_free(Network* network) {
  *
  */
 void network_predict(Network* network, double* input) {
-  for (size_t c = 0; c < network->n_hidden; c++) {
-    double sum = 0;
-    for (size_t r = 0; r < network->n_inputs; r++) {
-      sum += input[r] * network->weights_hidden[r * network->n_hidden + c];
-    }
-    network->hidden[c] =
-        (*network->hidden_fct)(sum + network->biases_hidden[c]);
-  }
-  if (network->ouput_activation == SOFTMAX) {
-    for (size_t c = 0; c < network->n_outputs; c++) {
-      double sum = 0.0;
-      for (size_t r = 0; r < network->n_hidden; r++) {
-        sum += network->hidden[r] *
-               network->weights_output[r * network->n_outputs + c];
-      }
-      network->output[c] = sum + network->biases_output[c];
-    }
-
-    double max_output = network->output[0];
-    for (size_t i = 1; i < network->n_outputs; i++) {
-      if (network->output[i] > max_output) {
-        max_output = network->output[i];
-      }
-    }
-
-    // Compute the exponentials and sum them
-    double sum_exp = 0;
-    for (size_t i = 0; i < network->n_outputs; i++) {
-      network->output[i] = exp(network->output[i] - max_output);
-      sum_exp += network->output[i];
-    }
-
-    // Normalize by dividing each by the sum of exponentials
-    for (size_t i = 0; i < network->n_outputs; i++) {
-      network->output[i] /= sum_exp;
-    }
-  } else {
-    for (size_t c = 0; c < network->n_outputs; c++) {
+  // //#pragma aac kernels
+  // * NOTE: Parallelization fails when using function pointers
+#pragma acc kernels
+  {
+    // #pragma acc parallel loop
+    for (size_t c = 0; c < network->n_hidden; c++) {
       double sum = 0;
-      for (size_t r = 0; r < network->n_hidden; r++) {
-        sum += network->hidden[r] *
-               network->weights_output[r * network->n_outputs + c];
+      // #pragma acc loop reduction(+ : sum)
+      for (size_t r = 0; r < network->n_inputs; r++) {
+        sum += input[r] * network->weights_hidden[r * network->n_hidden + c];
+      }
+      network->hidden[c] =
+          relu /*(*network->hidden_fct)*/ (sum + network->biases_hidden[c]);
+    }
+
+    if (network->ouput_activation == SOFTMAX) {
+      // #pragma acc parallel loop
+      for (size_t c = 0; c < network->n_outputs; c++) {
+        double sum = 0.0;
+        // #pragma acc loop reduction(+ : sum)
+        for (size_t r = 0; r < network->n_hidden; r++) {
+          sum += network->hidden[r] *
+                 network->weights_output[r * network->n_outputs + c];
+        }
+        network->output[c] = sum + network->biases_output[c];
       }
 
-      network->output[c] =
-          (*network->output_fct)(sum + network->biases_output[c]);
+      double max_output = network->output[0];
+      for (size_t i = 0; i < network->n_outputs; i++) {
+        if (network->output[i] > max_output) {
+          max_output = network->output[i];
+        }
+      }
+
+      // Compute the exponentials and sum them
+      double sum_exp = 0;
+      // #pragma acc parallel loop reduction(+ : sum_exp)
+      for (size_t i = 0; i < network->n_outputs; i++) {
+        network->output[i] = exp(network->output[i] - max_output);
+        sum_exp += network->output[i];
+      }
+
+      // Normalize by dividing each by the sum of exponentials
+      // #pragma acc parallel loop
+      for (size_t i = 0; i < network->n_outputs; i++) {
+        network->output[i] /= sum_exp;
+      }
+    } else {
+      // #pragma acc parallel loop
+      for (size_t c = 0; c < network->n_outputs; c++) {
+        double sum = 0;
+        // #pragma acc loop reduction(+ : sum)
+        for (size_t r = 0; r < network->n_hidden; r++) {
+          sum += network->hidden[r] *
+                 network->weights_output[r * network->n_outputs + c];
+        }
+
+        network->output[c] =
+            relu /*(*network->output_fct)*/ (sum + network->biases_output[c]);
+      }
     }
   }
 }
 
 /**
  * @brief Prints in stdout wether the hidden or output layer is dead (i.e. all
- * of the neuron from a layer are equal to 0). Happends frequently when learning
- * rate is too high while using RELU.
+ * of the neurons from a layer are equal to 0). Happends frequently when
+ * learning rate is too high while using RELU.
  *
  * @param network A pointer to the neural network structure to test its layers.
  *
@@ -329,49 +343,55 @@ void trainer_train(Trainer* trainer,
                    double* target,
                    double lr) {
   network_predict(network, input);
-  // is_network_dead(network);
-
-  for (size_t c = 0; c < network->n_outputs; c++) {
-    // trainer->grad_output[c] = (network->output[c] - target[c]) *
-    // sigmoid_prim(network->output[c]);
-    if (network->ouput_activation == SOFTMAX)
-      trainer->grad_output[c] = network->output[c] - target[c];
-    else
-      trainer->grad_output[c] = (network->output[c] - target[c]) *
-                                (*network->d_output_fct)(network->output[c]);
-  }
-
-  for (size_t r = 0; r < network->n_hidden; r++) {
-    double sum = 0.0;
+// is_network_dead(network);
+// * NOTE: Parallelization fails when using function pointers
+#pragma acc kernels
+  {
+    // #pragma acc parallel loop
     for (size_t c = 0; c < network->n_outputs; c++) {
-      sum += trainer->grad_output[c] *
-             network->weights_output[r * network->n_outputs + c];
+      // trainer->grad_output[c] = (network->output[c] - target[c]) *
+      // sigmoid_prim(network->output[c]);
+      if (network->ouput_activation == SOFTMAX)
+        trainer->grad_output[c] = network->output[c] - target[c];
+      else
+        trainer->grad_output[c] =
+            (network->output[c] - target[c]) * d_relu
+            /*(*network->d_output_fct)*/ (network->output[c]);
     }
+    // #pragma acc parallel loop
+    for (size_t r = 0; r < network->n_hidden; r++) {
+      double sum = 0.0;
+      // #pragma acc loop reduction(+ : sum)
+      for (size_t c = 0; c < network->n_outputs; c++) {
+        sum += trainer->grad_output[c] *
+               network->weights_output[r * network->n_outputs + c];
+      }
 
-    trainer->grad_hidden[r] =
-        sum * (*network->d_hidden_fct)(network->hidden[r]);
-  }
-
-  for (size_t r = 0; r < network->n_hidden; r++) {
+      trainer->grad_hidden[r] =
+          sum * /*(*network->d_hidden_fct)*/ d_relu(network->hidden[r]);
+    }
+    // #pragma acc parallel loop collapse(2)
+    for (size_t r = 0; r < network->n_hidden; r++) {
+      for (size_t c = 0; c < network->n_outputs; c++) {
+        network->weights_output[r * network->n_outputs + c] -=
+            lr * trainer->grad_output[c] * network->hidden[r];
+      }
+    }
+    // #pragma acc parallel loop collapse(2)
+    for (size_t r = 0; r < network->n_inputs; r++) {
+      for (size_t c = 0; c < network->n_hidden; c++) {
+        network->weights_hidden[r * network->n_hidden + c] -=
+            lr * trainer->grad_hidden[c] * input[r];
+      }
+    }
+    // #pragma acc parallel loop
     for (size_t c = 0; c < network->n_outputs; c++) {
-      network->weights_output[r * network->n_outputs + c] -=
-          lr * trainer->grad_output[c] * network->hidden[r];
+      network->biases_output[c] -= lr * trainer->grad_output[c];
     }
-  }
-
-  for (size_t r = 0; r < network->n_inputs; r++) {
+    // #pragma acc parallel loop
     for (size_t c = 0; c < network->n_hidden; c++) {
-      network->weights_hidden[r * network->n_hidden + c] -=
-          lr * trainer->grad_hidden[c] * input[r];
+      network->biases_hidden[c] -= lr * trainer->grad_hidden[c];
     }
-  }
-
-  for (size_t c = 0; c < network->n_outputs; c++) {
-    network->biases_output[c] -= lr * trainer->grad_output[c];
-  }
-
-  for (size_t c = 0; c < network->n_hidden; c++) {
-    network->biases_hidden[c] -= lr * trainer->grad_hidden[c];
   }
 }
 
@@ -474,19 +494,19 @@ void save_nn_data(const Network* network, const char* path) {
           network->n_outputs);
 
   for (size_t i = 0; i < network->n_inputs * network->n_hidden; i++) {
-    fprintf(fptr, "%9.6f;", network->weights_hidden[i]);
+    fprintf(fptr, "%9.8f;", network->weights_hidden[i]);
   }
   fprintf(fptr, "\n");
   for (size_t i = 0; i < network->n_hidden; i++) {
-    fprintf(fptr, "%9.6f;", network->biases_hidden[i]);
+    fprintf(fptr, "%9.8f;", network->biases_hidden[i]);
   }
   fprintf(fptr, "\n");
   for (size_t i = 0; i < network->n_hidden * network->n_outputs; i++) {
-    fprintf(fptr, "%9.6f;", network->weights_output[i]);
+    fprintf(fptr, "%9.8f;", network->weights_output[i]);
   }
   fprintf(fptr, "\n");
   for (size_t i = 0; i < network->n_outputs; i++) {
-    fprintf(fptr, "%9.6f;", network->biases_output[i]);
+    fprintf(fptr, "%9.8f;", network->biases_output[i]);
   }
   fprintf(fptr, "\n");
   fclose(fptr);
@@ -509,14 +529,15 @@ Network* load_nn_data(const char* path) {
   }
 
   long int act_hidden, act_output, n_input_, n_hidden_, n_output_;
-  if (fscanf(file, "%ld\n%ld\n%ld\n%ld\n%ld\n", &act_hidden, &act_output, &n_input_,
-             &n_hidden_, &n_output_) != 5) {
+  if (fscanf(file, "%ld\n%ld\n%ld\n%ld\n%ld\n", &act_hidden, &act_output,
+             &n_input_, &n_hidden_, &n_output_) != 5) {
     fclose(file);
     errx(EXIT_FAILURE, "Parsing NN confing failed\n");
   }
-  if(act_hidden < 0 || act_output < 0 || n_hidden_ <= 0 || n_input_ <= 0 || n_output_ <= 0){
+  if (act_hidden < 0 || act_output < 0 || n_hidden_ <= 0 || n_input_ <= 0 ||
+      n_output_ <= 0) {
     errx(EXIT_FAILURE, "Inavlid NN confing");
-  } 
+  }
   size_t n_input = n_input_;
   size_t n_hidden = n_hidden_;
   size_t n_output = n_output_;
