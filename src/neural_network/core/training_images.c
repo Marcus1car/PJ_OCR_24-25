@@ -104,7 +104,7 @@ double *load_image_bw(char *path) {
     err(EXIT_FAILURE, "Img with path %s doesn't have the required dimensions.",
         path);
 
-  Uint8 threshold = calculate_otsu_threshold(img);
+  //Uint8 threshold = calculate_otsu_threshold(img);
 
   double *array = calloc(IMG_W * IMG_H, sizeof(double));
   if (array == NULL) {
@@ -201,7 +201,7 @@ void print_current_iter(const Network *net, const char current_letter,
   printf("CHAR = %c: [", current_letter);
   for (char i = 0; i < 26; i++) {
     printf("%c = ", 'A' + i);
-    printColor(net->output[i]);
+    printColor(net->output[(size_t)i]);
     printf(", ");
   }
   printf("] Best guess: %c ", indexOfMax(net->output, 26) + 'A');
@@ -228,7 +228,7 @@ int main(int argc, char **argv) {
          "SLASH IS REQUIRED SINON CA MARCHE PAS JAIME PAS LE C");
   ActivationFunction hidden_fct = (ActivationFunction)atoi(argv[1]);
   ActivationFunction output_fct = (ActivationFunction)atoi(argv[2]);
-  int training_steps = atoi(argv[3]);
+  int training_steps_ = atoi(argv[3]);
   if (hidden_fct <= SOFTMAX || hidden_fct > TANH)
     errx(EXIT_FAILURE,
          "Hidden activation fct invalid. %d \nSOFTMAX \t= 0\nSIGMOID \t= "
@@ -237,7 +237,8 @@ int main(int argc, char **argv) {
   if (output_fct < SOFTMAX || output_fct > TANH)
     errx(EXIT_FAILURE,
          "Output activation fct invalid. \nSOFTMAX \t= 0\nSIGMOID \t= 1\n\n\n");
-  if (training_steps <= 0) errx(EXIT_FAILURE, "Training step invalid");
+  if (training_steps_ <= 0) errx(EXIT_FAILURE, "Training step invalid");
+  size_t training_steps = training_steps;
 
   Network *network = network_init(INPUT_LAYER_SIZE, HIDDEN_LAYER_SIZE,
                                   OUTPUT_LAYER_SIZE, hidden_fct, output_fct);
