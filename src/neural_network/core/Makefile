@@ -12,6 +12,9 @@ build_dir:
 poc: build_dir
 	$(CC) $(CC_FLAGS) $(DEPS) poc.c -o build/poc $(LIBS)
 
+poc_load: build_dir
+	$(CC) $(CC_FLAGS) $(DEPS) poc_load.c -o build/poc_load $(LIBS)
+
 training_images: build_dir
 	$(CC) $(CC_FLAGS) $(DEPS) training_images.c -o build/training_images $(LIBS) $(SDL_LIBS)
 

@@ -4,8 +4,9 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <string.h>
+#include <time.h>
+#include <stdio.h>
 
 // #include <omp.h>
 
@@ -402,8 +403,6 @@ void print_network(const Network* network) {
     printf("\n");
   }
 
-  
-
   printf("\n");
 
   printf("Output layer weights:\n");
@@ -416,7 +415,7 @@ void print_network(const Network* network) {
 
     printf("\n");
   }
-printf("Biases of hidden layer:\n\t");
+  printf("Biases of hidden layer:\n\t");
   for (size_t i = 0; i < network->n_hidden; i++) {
     printf("%9.6f ", network->biases_hidden[i]);
   }
@@ -437,6 +436,26 @@ printf("Biases of hidden layer:\n\t");
  * specified file. The file will contain the number of inputs, hidden neurons,
  * and outputs, followed by the weights of the hidden layer.
  *
+ * The file will look like this (where Ln is the line number n):
+ *
+ * * L1: Hidden activation function
+ *
+ * * L2: Output activation function
+ *
+ * * L3: Number of input neurons
+ *
+ * * L4: Number of hidden neurons
+ *
+ * * L5: Number of output neurons
+ *
+ * * L6: Hidden layer weights (separated by ';')
+ *
+ * * L7: Hidden layer biases (separated by ';')
+ *
+ * * L8: Output layer weights (separated by ';')
+ *
+ * * L9: Output layer biases (separated by ';')
+ *
  * @param network A pointer to the neural network structure containing the data
  * to be saved.
  * @param path The file path where the neural network data will be saved.
@@ -448,40 +467,28 @@ void save_nn_data(const Network* network, const char* path) {
   FILE* fptr;
   fptr = fopen(path, "w");
   if (fptr == NULL)
-    fprintf(stderr, "Error while opening file to save weights");
-  printf("COUCOU1;;;;;;\n");
+    errx(EXIT_FAILURE, "Error while opening file to save config");
 
-  fprintf(fptr, "%ld;%ld;%ld\n", network->n_inputs, network->n_hidden,
+  fprintf(fptr, "%d\n%d\n%ld\n%ld\n%ld\n", network->hidden_activation,
+          network->ouput_activation, network->n_inputs, network->n_hidden,
           network->n_outputs);
-  printf("COUCOU2232323232;;;;;;\n");
 
-  for (size_t i = 0; i < network->n_inputs; i++) {
-    for (size_t j = 0; j < network->n_hidden; j++) {
-      printf("%ld,%ld\n", i, j);
-      fprintf(fptr, "%9.6f;",
-              network->weights_hidden[network->n_inputs * j + i]);
-    }
+  for (size_t i = 0; i < network->n_inputs * network->n_hidden; i++) {
+    fprintf(fptr, "%9.6f;", network->weights_hidden[i]);
   }
-  printf("COUCOU12;;;;;;\n");
-
   fprintf(fptr, "\n");
   for (size_t i = 0; i < network->n_hidden; i++) {
     fprintf(fptr, "%9.6f;", network->biases_hidden[i]);
   }
-  printf("COUCOU123;;;;;;\n");
-
   fprintf(fptr, "\n");
   for (size_t i = 0; i < network->n_hidden * network->n_outputs; i++) {
     fprintf(fptr, "%9.6f;", network->weights_output[i]);
   }
-  printf("COUCOU1234;;;;;;\n");
-
   fprintf(fptr, "\n");
   for (size_t i = 0; i < network->n_outputs; i++) {
     fprintf(fptr, "%9.6f;", network->biases_output[i]);
   }
   fprintf(fptr, "\n");
-  printf("COUCOU;;;;;;\n");
   fclose(fptr);
 }
 
@@ -495,8 +502,66 @@ void save_nn_data(const Network* network, const char* path) {
  * previously initialized
  * @param path The file path where the neural network data has been saved.
  */
-void load_nn_data(Network* network, const char* path) {}
+Network* load_nn_data(const char* path) {
+  FILE* file = fopen(path, "r");
+  if (!file) {
+    errx(EXIT_FAILURE, "Error opening file");
+  }
 
+  long int act_hidden, act_output, n_input_, n_hidden_, n_output_;
+  if (fscanf(file, "%ld\n%ld\n%ld\n%ld\n%ld\n", &act_hidden, &act_output, &n_input_,
+             &n_hidden_, &n_output_) != 5) {
+    fclose(file);
+    errx(EXIT_FAILURE, "Parsing NN confing failed\n");
+  }
+  if(act_hidden < 0 || act_output < 0 || n_hidden_ <= 0 || n_input_ <= 0 || n_output_ <= 0){
+    errx(EXIT_FAILURE, "Inavlid NN confing");
+  } 
+  size_t n_input = n_input_;
+  size_t n_hidden = n_hidden_;
+  size_t n_output = n_output_;
+
+  Network* network =
+      network_init(n_input, n_hidden, n_output, act_hidden, act_output);
+
+  for (size_t i = 0; i < n_input * n_hidden; i++) {
+    if (fscanf(file, "%lf;", &network->weights_hidden[i]) != 1) {
+      errx(EXIT_FAILURE, "Error while parsing WH at %ld", i);
+      network_free(network);
+    }
+  }
+  size_t a = fscanf(file, "%*[\n;]");
+  printf("a = %ld\n", a);
+  for (size_t i = 0; i < n_hidden; i++) {
+    if (fscanf(file, "%lf;", &network->biases_hidden[i]) != 1) {
+      errx(EXIT_FAILURE, "Error while parsing NH at %ld", i);
+      network_free(network);
+    }
+  }
+  fscanf(file, "%*[\n;]");
+  for (size_t i = 0; i < n_hidden * n_output; i++) {
+    if (fscanf(file, "%lf;", &network->weights_output[i]) != 1) {
+      errx(EXIT_FAILURE, "Error while parsing WO at %ld", i);
+      network_free(network);
+    }
+  }
+  fscanf(file, "%*[\n;]");
+  for (size_t i = 0; i < n_output; i++) {
+    if (fscanf(file, "%lf;", &network->biases_output[i]) != 1) {
+      errx(EXIT_FAILURE, "Error while parsing WO at %ld", i);
+      network_free(network);
+    }
+  }
+  fscanf(file, "%*[\n;]");
+  fclose(file);
+  return network;
+}
+
+/**
+ * @brief Prints a graphviz representation of the neural network for debugging
+ *
+ * @param network A pointer to the neural network structure to print
+ */
 void print_graphviz(const Network* net) {
   printf("digraph NeuralNetwork {\n");
   printf("    rankdir=LR;\n");     // Left to right layout

@@ -1,9 +1,9 @@
 /*
-* Neural network PoC - Project Defense #1
-* This scripts trains a simple neural network which outputs the results of 6
-logic gates (XOR, XNOR, OR, NOR, AND, NAND)
-
+ * Neural network PoC - Project Defense #1
+ * This scripts trains a simple neural network which outputs the results of 6
+ * logic gates (XOR, XNOR, OR, NOR, AND, NAND)
  */
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,6 +48,7 @@ int main() {
   print_graphviz(network);
 
   print_network(network);
+  save_nn_data(network, "./poc_training.data");
   trainer_free(trainer);
   network_free(network);
   return EXIT_SUCCESS;

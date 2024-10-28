@@ -60,7 +60,7 @@ void trainer_train(Trainer* trainer,
 void trainer_free(Trainer* trainer);
 void print_network(const Network* network);
 void save_nn_data(const Network* network, const char* path);
-void load_nn_data(Network* network, const char* path);
+Network* load_nn_data(const char* path);
 void is_network_dead(const Network* network);
 void print_graphviz(const Network* net);
 
