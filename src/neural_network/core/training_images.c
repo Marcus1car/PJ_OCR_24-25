@@ -94,6 +94,7 @@ void shuffle(double** array1, double** array2, size_t size) {
 double* load_image_bw(char* path) {
   SDL_Surface* aaa = IMG_Load(path);
   SDL_Surface* img = SDL_ConvertSurfaceFormat(aaa, SDL_PIXELFORMAT_RGB888, 0);
+  SDL_FreeSurface(aaa);
   if (SDL_MUSTLOCK(img)) {
     SDL_LockSurface(img);
   }
@@ -135,7 +136,7 @@ double* load_image_bw(char* path) {
   if (SDL_MUSTLOCK(img)) {
     SDL_UnlockSurface(img);
   }
-
+  SDL_FreeSurface(img);
   return array;
 }
 

@@ -1,7 +1,7 @@
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 #include <err.h>
 #include <stdlib.h>
-#include <SDL2/SDL_image.h>
 
 #include "neural.h"
 
@@ -38,6 +38,87 @@ SDL_Surface* load_image(const char* path) {
  *
  * @param surface - An SDL surface to convert to grayscale on place
  */
+
+int calculate_otsu_threshold(SDL_Surface* surface) {
+  int width = surface->w;
+  int height = surface->h;
+
+  Uint32* pixels = (Uint32*)surface->pixels;
+
+  int histogram[256] = {0};
+
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      Uint32 pixel = pixels[(y * width) + x];
+      Uint8 r, g, b;
+      SDL_GetRGB(pixel, surface->format, &r, &g, &b);
+      // printf("color= %d %d %d\n",r, g, b);
+
+      Uint8 gray = (Uint8)(0.299 * r + 0.587 * g + 0.114 * b);
+      histogram[gray]++;
+    }
+  }
+  int total_pixels = width * height;
+  int sumB = 0;
+  int wB = 0;
+  double max_variance = 0;
+  int threshold = 0;
+  int sum1 = 0;
+
+  for (int i = 0; i < 256; i++) {
+    sum1 += i * histogram[i];
+  }
+
+  for (int i = 0; i < 256; i++) {
+    wB += histogram[i];
+    if (wB == 0)
+      continue;
+
+    int wF = total_pixels - wB;
+    if (wF == 0)
+      break;
+
+    sumB += i * histogram[i];
+    double mB = (double)sumB / wB;
+    double mF = (double)(sum1 - sumB) / wF;
+
+    // Calculate Between-Class Variance
+    double variance = (double)wB * wF * (mB - mF) * (mB - mF);
+    if (variance > max_variance) {
+      max_variance = variance;
+      threshold = i;
+    }
+  }
+
+  return threshold;
+}
+
+void to_bw(SDL_Surface* surface) {
+  int threshold = calculate_otsu_threshold(surface);
+  int width = surface->w;
+  int height = surface->h;
+  if (SDL_MUSTLOCK(surface))
+    SDL_LockSurface(surface);
+
+  Uint32* pixels = (Uint32*)surface->pixels;
+
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      Uint32 pixel = pixels[(y * width) + x];
+      Uint8 r, g, b;
+      SDL_GetRGB(pixel, surface->format, &r, &g, &b);
+      Uint8 gray = (Uint8)(0.299 * r + 0.587 * g + 0.114 * b);
+      Uint8 color_value = (gray > threshold) ? 255 : 0;
+
+      Uint32 color =
+          SDL_MapRGB(surface->format, color_value, color_value, color_value);
+      pixels[(y * surface->w) + x] = color;
+    }
+  }
+  if (SDL_MUSTLOCK(surface))
+    SDL_UnlockSurface(surface);
+}
+
 void to_gs(SDL_Surface* surface) {
   int width = surface->w;
   int height = surface->h;
@@ -65,7 +146,8 @@ void to_gs(SDL_Surface* surface) {
 
 /*
  * @brief Returns a pointer to double list of size OUTPUT_SIZE of prediction of
- * a surface against the neural network. Note: size of output layer should be  * of OUTPUT_SIZE
+ * a surface against the neural network. Note: size of output layer should be  *
+ * of OUTPUT_SIZE
  *
  * @param ocr The neural network to predict against
  * @param surface The surface to perform the test

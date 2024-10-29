@@ -8,7 +8,7 @@ alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ".lower()
 image_size = (32, 32)
 
 # Directory to save generated images
-output_dir = os.path.join("images", "mix")
+output_dir = os.path.join("images", "testing2")
 os.makedirs(output_dir, exist_ok=True)
 
 # List your font files here

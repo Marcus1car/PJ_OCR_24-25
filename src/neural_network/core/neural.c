@@ -551,8 +551,7 @@ Network* load_nn_data(const char* path) {
       network_free(network);
     }
   }
-  size_t a = fscanf(file, "%*[\n;]");
-  printf("a = %ld\n", a);
+  fscanf(file, "%*[\n;]");
   for (size_t i = 0; i < n_hidden; i++) {
     if (fscanf(file, "%lf;", &network->biases_hidden[i]) != 1) {
       errx(EXIT_FAILURE, "Error while parsing NH at %ld", i);
