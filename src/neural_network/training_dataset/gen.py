@@ -8,7 +8,7 @@ alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ".lower()
 image_size = (32, 32)
 
 # Directory to save generated images
-output_dir = os.path.join("images", "simple")
+output_dir = os.path.join("images", "testing")
 os.makedirs(output_dir, exist_ok=True)
 
 # List your font files here
@@ -24,8 +24,8 @@ def add_random_variation(image):
     image = image.rotate(angle, fillcolor="white")
     
     # # 2. Gaussian Blur
-    # if random.random() < 0.5:  # 50% chance to apply blur
-    #     image = image.filter(ImageFilter.GaussianBlur(radius=random.uniform(0.5, 1.3)))
+    if random.random() < 0.5:  # 50% chance to apply blur
+         image = image.filter(ImageFilter.GaussianBlur(radius=random.uniform(0.5, 1.3)))
     
     # # 3. Noise
 
@@ -38,11 +38,11 @@ def add_random_variation(image):
     #     rect_y2 = rect_y1 + random.randint(2, 8)
     #     draw.rectangle([rect_x1, rect_y1, rect_x2, rect_y2], fill="white")
         
-    # if random.random() < 0.5:  # 50% chance to add noise
-    #     noise = np.random.normal(0, 25, (32, 32))  # Mean = 0, Stddev = 25
-    #     noise_img = np.array(image).astype(np.float32) + noise
-    #     noise_img = np.clip(noise_img, 0, 255).astype(np.uint8)
-    #     image = Image.fromarray(noise_img)
+    if random.random() < 0.5:  # 50% chance to add noise
+        noise = np.random.normal(0, 25, (32, 32))  # Mean = 0, Stddev = 25
+        noise_img = np.array(image).astype(np.float32) + noise
+        noise_img = np.clip(noise_img, 0, 255).astype(np.uint8)
+        image = Image.fromarray(noise_img)
     
     return image
 
@@ -104,7 +104,7 @@ for font_path in font_files:
         else:
             image_filename = f"{letter.lower()}_cap_{font_name}.png"
         image_path = os.path.join(output_dir, image_filename)
-        image.save(image_path)
+        #image.save(image_path)
         for i in range(2):
             varied_image = add_random_variation(image)
             if letter.islower():
