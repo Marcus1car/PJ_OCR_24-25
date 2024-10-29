@@ -113,7 +113,7 @@ closedir(testing_directory);
     SDL_Surface *a = load_image(testing_img_path[k]) ;
     
     double* res = predict_from_surface(network, a);
-    free(a);
+    SDL_FreeSurface(a);
     printf("%c\t", testing_img_path[k][strlen(argv[2])]);
     for (size_t k = 0; k < 26; k++) {
       printColor(res[k]);

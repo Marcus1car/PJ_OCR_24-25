@@ -29,7 +29,7 @@ Network* init_ocr(size_t hidden) {
 SDL_Surface* load_image(const char* path) {
   SDL_Surface* t = IMG_Load(path);
   SDL_Surface* img = SDL_ConvertSurfaceFormat(t, SDL_PIXELFORMAT_RGB888, 0);
-  free(t);
+  SDL_FreeSurface(t);
   return img;
 }
 

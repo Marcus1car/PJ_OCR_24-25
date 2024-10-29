@@ -8,11 +8,11 @@ alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ".lower()
 image_size = (32, 32)
 
 # Directory to save generated images
-output_dir = os.path.join("images", "testing")
+output_dir = os.path.join("images", "mix")
 os.makedirs(output_dir, exist_ok=True)
 
 # List your font files here
-FONT_DIR = "./fonts"
+FONT_DIR = "./fonts_new"
 font_files = [os.path.join(FONT_DIR, font) for font in os.listdir(FONT_DIR)]
 
 def add_random_variation(image):
@@ -105,12 +105,12 @@ for font_path in font_files:
             image_filename = f"{letter.lower()}_cap_{font_name}.png"
         image_path = os.path.join(output_dir, image_filename)
         #image.save(image_path)
-        for i in range(2):
+        for i in range(10):
             varied_image = add_random_variation(image)
             if letter.islower():
-                varied_filename = f"{letter.lower()}_low_{font_name}_variation_{i}.png"
+                varied_filename = f"{letter.lower()}_low_{font_name}_variation_{i}_1.png"
             else:
-                varied_filename = f"{letter.lower()}_cap_{font_name}_variation_{i}.png"
+                varied_filename = f"{letter.lower()}_cap_{font_name}_variation_{i}_1.png"
             varied_image.save(os.path.join(output_dir, varied_filename))
             print(f"Saved {varied_filename}")
         

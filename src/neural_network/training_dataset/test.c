@@ -3,6 +3,9 @@
 #include <SDL2/SDL_image.h>
 #include <dirent.h> // For reading directory files
 #include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+
 /*
 void render_and_save_letter(SDL_Renderer *renderer, TTF_Font *font, char letter, const char *output_path)
 {
@@ -256,6 +259,65 @@ int main(int argc, char *argv[])
 #include <stdlib.h>  */// For random noise
 
 // Function to add noise to the image surface
+const int gaussianKernel[3][3] = {
+    {1, 2, 1},
+    {2, 4, 2},
+    {1, 2, 1}
+};
+const int kernelSum = 16;
+
+void applyGaussianBlur(SDL_Surface *surface) {
+    if (SDL_LockSurface(surface) != 0) {
+        printf("Failed to lock surface: %s\n", SDL_GetError());
+        return;
+    }
+
+    SDL_Surface *tempSurface = SDL_ConvertSurface(surface, surface->format, 0);
+    if (!tempSurface) {
+        printf("Failed to create temporary surface: %s\n", SDL_GetError());
+        SDL_UnlockSurface(surface);
+        return;
+    }
+
+    Uint32 *pixels = (Uint32 *)surface->pixels;
+    Uint32 *tempPixels = (Uint32 *)tempSurface->pixels;
+
+    int width = surface->w;
+    int height = surface->h;
+
+    for (int y = 1; y < height - 1; y++) {
+        for (int x = 1; x < width - 1; x++) {
+            int r = 0, g = 0, b = 0;
+
+            // Apply Gaussian Kernel
+            for (int ky = -1; ky <= 1; ky++) {
+                for (int kx = -1; kx <= 1; kx++) {
+                    int pixelX = x + kx;
+                    int pixelY = y + ky;
+                    Uint32 pixelColor = tempPixels[pixelY * width + pixelX];
+
+                    Uint8 pr, pg, pb;
+                    SDL_GetRGB(pixelColor, surface->format, &pr, &pg, &pb);
+
+                    int kernelValue = gaussianKernel[ky + 1][kx + 1];
+                    r += pr * kernelValue;
+                    g += pg * kernelValue;
+                    b += pb * kernelValue;
+                }
+            }
+
+            r /= kernelSum;
+            g /= kernelSum;
+            b /= kernelSum;
+
+            // Set blurred pixel back
+            pixels[y * width + x] = SDL_MapRGB(surface->format, r, g, b);
+        }
+    }
+
+    SDL_FreeSurface(tempSurface);
+    SDL_UnlockSurface(surface);
+}
 void add_noise(SDL_Surface *surface, int intensity)
 {
     int num_pixels = (surface->w * surface->h * intensity) / 100; // Define number of noisy pixels based on intensity
@@ -335,6 +397,9 @@ void render_and_save_letter(SDL_Renderer *renderer, TTF_Font *font, char letter,
 
     // Add noise to the image surface
     add_noise(image_surface, noise_intensity);
+    if((double)rand()/RAND_MAX <= 0.5){
+        applyGaussianBlur(image_surface);
+    }
 
     // Save the final surface as a PNG file
     if (IMG_SavePNG(image_surface, output_path) != 0) {
@@ -433,7 +498,7 @@ void generate_dataset_from_fonts(const char *font_folder, const char *output_fol
 
                 // Generate letters A-Z with rotation and noise variations
                 for (char letter = 'A'; letter <= 'Z'; ++letter) {
-                    for (size_t k = 0; k < 5; k++) {  // Rotations from -20 to 20 degrees
+                    for (size_t k = 0; k < 15; k++) {  // Rotations from -20 to 20 degrees
                         char output_path[512];
                         int random_number = (rand() % 61) - 30;
                         snprintf(output_path, sizeof(output_path), "%s/%c_%d_%s.png", output_folder, letter-'A'+'a', random_number, ent->d_name);
@@ -463,6 +528,7 @@ int main(int argc, char *argv[])
         printf("Usage: %s <font_folder> <output_folder> <noise_intensity>\n", argv[0]);
         return 1;
     }
+    srand(time(NULL)); 
 
     const char *font_folder = argv[1];
     const char *output_folder = argv[2];
