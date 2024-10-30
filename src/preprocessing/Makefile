@@ -1,52 +1,30 @@
-# Compiler settings
+# Define the compiler
 CC = gcc
-CFLAGS = -Wall -Wextra -O2 -g
-LDFLAGS = -lSDL2 -lSDL2_image -lm
 
-# SDL2 flags - automatically detect using pkg-config if available
-SDL_CFLAGS := $(shell pkg-config --cflags sdl2 SDL2_image)
-SDL_LDFLAGS := $(shell pkg-config --libs sdl2 SDL2_image)
+# Compiler flags for warnings and optimization
+CFLAGS = -Wall -O2 `sdl2-config --cflags` -I.
 
-# Add SDL flags to our flags
-CFLAGS += $(SDL_CFLAGS)
-LDFLAGS += $(SDL_LDFLAGS)
+# Linker flags for SDL2 and SDL2_image
+LDFLAGS = `sdl2-config --libs` -lSDL2_image -lm
+
+# Output binary name
+TARGET = preprocess
 
 # Source files
-LIB_SRCS = preprocess.c
-LIB_OBJS = $(LIB_SRCS:.c=.o)
-MAIN_SRCS = main.c
-MAIN_OBJS = $(MAIN_SRCS:.c=.o)
-TEST_SRCS = test_preprocess.c
-TEST_OBJS = $(TEST_SRCS:.c=.o)
+SRC = preprocess.c
+OBJ = $(SRC:.c=.o)
 
-# Header files
-HEADERS = preprocess.h
+# Default target to build the executable
+all: $(TARGET)
 
-# Main targets
-all: libpreprocess.a preprocess_main preprocess_test
+$(TARGET): $(OBJ)
+	$(CC) -o $(TARGET) $(OBJ) $(LDFLAGS)
 
-# Static library
-libpreprocess.a: $(LIB_OBJS)
-	ar rcs $@ $^
-
-# Main program
-preprocess_main: $(MAIN_OBJS) libpreprocess.a
-	$(CC) -o $@ $(MAIN_OBJS) -L. -lpreprocess $(LDFLAGS)
-
-# Test program
-preprocess_test: $(TEST_OBJS) libpreprocess.a
-	$(CC) -o $@ $(TEST_OBJS) -L. -lpreprocess $(LDFLAGS)
-
-# Object files
-%.o: %.c $(HEADERS)
+%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Clean target
+# Clean up build files
 clean:
-	rm -f $(LIB_OBJS) $(MAIN_OBJS) $(TEST_OBJS) libpreprocess.a preprocess_main preprocess_test test_*.png
+	rm -f $(TARGET) $(OBJ)
 
-# Test target
-test: preprocess_test
-	./preprocess_test
-
-.PHONY: all clean test
+.PHONY: all clean

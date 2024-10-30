@@ -1,15 +1,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
-#include <SDL2/SDL2_rotozoom.h>
 #include <stdio.h>
-#include <math.h> 
-#include<stdlib.h>
 
-
-
-//----------------------------------------------------------------
-//Import function 
-//----------------------------------------------------------------
 SDL_Surface* loadImage(const char* given_path) 
 {
     if (!given_path) 
@@ -27,120 +19,103 @@ SDL_Surface* loadImage(const char* given_path)
     }
     return image;
 }
-// ----------------------------------------------------------------
-//Contrast function  Y
-//----------------------------------------------------------------
-void enhanceContrast(SDL_Surface *surface, double noiseLevel) 
-{
-    Uint32 *pixels =(Uint32 *)surface->pixels;
+
+double calculateNoiseLevel(SDL_Surface *surface) {
+    Uint32 *pixels = (Uint32 *)surface->pixels;
     int width = surface->w;
     int height = surface->h;
-    Uint8 minGray = 255, maxGray = 0;
-    // Find minimum and maximum grayscale values in the image
+    int totalPixels = width * height;
+    double sum = 0.0, sumSquared = 0.0;
+
+    for (int i = 0; i < totalPixels; i++) {
+        Uint8 r, g, b;
+        SDL_GetRGB(pixels[i], surface->format, &r, &g, &b);
+        sum += r;
+        sumSquared += r * r;
+    }
+
+    double mean = sum / totalPixels;
+    double variance = (sumSquared / totalPixels) - (mean * mean);
+    double stdDev = sqrt(variance);
+
+    return stdDev;
+}
+
+Uint8 calculateMeanLight(SDL_Surface *surface) {
+    Uint32 *pixels = (Uint32 *)surface->pixels;
+    int width = surface->w;
+    int height = surface->h;
+    int totalPixels = width * height;
+    unsigned long totalLight = 0;
+
+    for (int i = 0; i < totalPixels; i++) {
+        Uint8 r, g, b;
+        SDL_GetRGB(pixels[i], surface->format, &r, &g, &b);
+        
+        // Since the image should already be grayscale, we only need one channel (r, g, or b)
+        totalLight += r;
+    }
+
+    // Calculate mean light intensity
+    Uint8 meanLight = (Uint8)(totalLight / totalPixels);
+    return meanLight;
+}
+
+
+
+
+void convertToGrayscale(SDL_Surface *surface) {
+    Uint32 *pixels = (Uint32 *)surface->pixels;
+    int width = surface->w;
+    int height = surface->h;
+
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             Uint32 pixel = pixels[y * width + x];
             Uint8 r, g, b;
             SDL_GetRGB(pixel, surface->format, &r, &g, &b);
-            if (r < minGray) minGray = r;
-            if (r > maxGray) maxGray = r;
-        }
-    }
-    // Define contrast strength based on noise level (higher noise level = stronger scaling)
-    double contrastStrength = (noiseLevel >= 60.0) ? 1.5 : (noiseLevel >= 20.0) ? 1.2 : 1.0;
-    Uint8 minScaled = (Uint8)(minGray * contrastStrength);
-    Uint8 maxScaled = (Uint8)(maxGray * contrastStrength);
-    for (int y = 0; y < height; ++y) 
-    {
-        for (int x = 0; x < width; ++x) 
-        {
-            Uint32 pixel = pixels[y * width + x];
-            Uint8 r, g, b;
-            SDL_GetRGB(pixel, surface->format, &r, &g, &b);
-            Uint8 stretched = (Uint8)(((r - minGray) * (maxScaled - minScaled)) / (maxGray - minGray) + minScaled);
-            pixels[y * width + x] = SDL_MapRGB(surface->format, stretched, stretched, stretched);
+
+            // Calculate grayscale value
+            Uint8 gray = (Uint8)(0.299 * r + 0.587 * g + 0.114 * b);
+            pixels[y * width + x] = SDL_MapRGB(surface->format, gray, gray, gray);
         }
     }
 }
-//----------------------------------------------------------------
-//Binarize functions
-//----------------------------------------------------------------
-Uint8 calculateMeanLight(SDL_Surface *surface) 
-{
-    Uint32 *pixels = (Uint32 *)surface->pixels;
-    int height = surface->h;
-    int width = surface->w;
-    unsigned long totalLight = 0;
-    int totalPixels = height * width;
-    for (int x = 0; x < totalPixels; x++) 
-    {
-        Uint8 r,g,b;
-        SDL_GetRGB(pixels[x], surface->format, &r, &g, &b);
-        totalLight = totalLight + r;
-    }
-    Uint8 res = (Uint8)(totalLight / totalPixels);
-    return res;
-}
+
 void convertToBlackAndWhite(SDL_Surface *surface) {
     Uint8 threshold = calculateMeanLight(surface);
     printf("Binarize with %d threshold \n", threshold);
+
     Uint32 *pixels = (Uint32 *)surface->pixels;
     int width = surface->w;
     int height = surface->h;
 
-    for (int y = 0; y < height; ++y) 
-    {
-        for (int x = 0; x < width; ++x) 
-        {
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
             Uint32 pixel = pixels[y * width + x];
             Uint8 r, g, b;
             SDL_GetRGB(pixel, surface->format, &r, &g, &b);
+
+            // Use the mean light intensity as a threshold for black-and-white conversion
             Uint8 bw = (r >= threshold) ? 255 : 0;
             pixels[y * width + x] = SDL_MapRGB(surface->format, bw, bw, bw);
         }
     }
 }
-//----------------------------------------------------------------
-//Denoise functions 
-//----------------------------------------------------------------
-double calculateNoiseLevel(SDL_Surface *surface) 
-{
-    Uint32 *pixels = (Uint32 *)surface->pixels;
-    double sum = 0.0;
-    double sumsq = 0.0;
-    int height = surface->h;
-    int width = surface->w;
-    int tot = width * height;
-    for (int x = 0; x < tot; x++) 
-    {
-        Uint8 r,g,b;
-        SDL_GetRGB(pixels[x], surface->format, &r, &g, &b);
-        sumsq += r*r;
-        sum += r;
-    }
-    double mean = sum/tot;
-    double var = (sumsq/tot)-(mean*mean);
-    double res = sqrt(var);
-    return res;
-}
 
-void medianFilter(SDL_Surface *surface) 
-{
+void medianFilter(SDL_Surface *surface) {
+    int width = surface->w;
     int height = surface->h;
-    int width = surface->w;  
     Uint32 *pixels = (Uint32 *)surface->pixels;
     Uint32 *copy = (Uint32 *)malloc(width * height * sizeof(Uint32));
     memcpy(copy, pixels, width * height * sizeof(Uint32));
-    for (int y = 1; y < height - 1; ++y) 
-    {
-        for (int x = 1; x < width - 1; ++x) 
-        {
+
+    for (int y = 1; y < height - 1; ++y) {
+        for (int x = 1; x < width - 1; ++x) {
             Uint8 neighborhood[9];
             int index = 0;
-            for (int dy = -1; dy <= 1; ++dy) 
-            {
-                for (int dx = -1; dx <= 1; ++dx)
-                 {
+            for (int dy = -1; dy <= 1; ++dy) {
+                for (int dx = -1; dx <= 1; ++dx) {
                     Uint32 pixel = copy[(y + dy) * width + (x + dx)];
                     Uint8 r, g, b;
                     SDL_GetRGB(pixel, surface->format, &r, &g, &b);
@@ -148,12 +123,9 @@ void medianFilter(SDL_Surface *surface)
                 }
             }
             // Sort the neighborhood array and take the median
-            for (int i = 0; i < 9; i++) 
-            {
-                for (int j = i + 1; j < 9; j++) 
-                {
-                    if (neighborhood[j] < neighborhood[i])
-                     {
+            for (int i = 0; i < 9; i++) {
+                for (int j = i + 1; j < 9; j++) {
+                    if (neighborhood[j] < neighborhood[i]) {
                         Uint8 temp = neighborhood[i];
                         neighborhood[i] = neighborhood[j];
                         neighborhood[j] = temp;
@@ -166,55 +138,45 @@ void medianFilter(SDL_Surface *surface)
     }
     free(copy);
 }
-//----------------------------------------------------------------
-//Greyscale functions 
-//----------------------------------------------------------------
-void convertToGrayscale(SDL_Surface *surface) 
-{
+
+void enhanceContrast(SDL_Surface *surface, double noiseLevel) {
     Uint32 *pixels = (Uint32 *)surface->pixels;
-    int height = surface->h;
     int width = surface->w;
+    int height = surface->h;
+    Uint8 minGray = 255, maxGray = 0;
 
-
-    for (int y = 0; y < height; ++y) 
-    {
-        for (int x = 0; x < width; ++x) 
-        {
+    // Find minimum and maximum grayscale values in the image
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
             Uint32 pixel = pixels[y * width + x];
-            Uint8 r,g,b;
+            Uint8 r, g, b;
             SDL_GetRGB(pixel, surface->format, &r, &g, &b);
-            Uint8 gray = (Uint8)(0.299 * r + 0.587 * g + 0.114 * b);
-            pixels[y * width + x] = SDL_MapRGB(surface->format, gray, gray, gray);
+
+            if (r < minGray) minGray = r;
+            if (r > maxGray) maxGray = r;
+        }
+    }
+
+    // Define contrast strength based on noise level (higher noise level = stronger scaling)
+    double contrastStrength = (noiseLevel >= 50.0) ? 1.5 : (noiseLevel >= 30.0) ? 1.2 : 1.0;
+    Uint8 minScaled = (Uint8)(minGray * contrastStrength);
+    Uint8 maxScaled = (Uint8)(maxGray * contrastStrength);
+
+    // Stretch contrast across the new range [minScaled, maxScaled]
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            Uint32 pixel = pixels[y * width + x];
+            Uint8 r, g, b;
+            SDL_GetRGB(pixel, surface->format, &r, &g, &b);
+
+            // Scale pixel value to new contrast range
+            Uint8 stretched = (Uint8)(((r - minGray) * (maxScaled - minScaled)) / (maxGray - minGray) + minScaled);
+            pixels[y * width + x] = SDL_MapRGB(surface->format, stretched, stretched, stretched);
         }
     }
 }
-//----------------------------------------------------------------
-//Manual Rotation function 
-//----------------------------------------------------------------
-SDL_Surface * man_rotation (SDL_Surface * given_image , double angle) 
-{
-    if (!given_image) 
-    {fprintf(stderr, "Error: NULL image provided\n");return NULL;}
-    
-    angle = fmod(angle, 360.0);
-    if (angle < 0) angle += 360.0;
-    if (angle == 0.0 || angle == 360.0) 
-    {
-        SDL_Surface* copy = SDL_ConvertSurface(given_image,given_image->format, 0);
-        if (!copy) 
-        {fprintf(stderr, "Error creating surface copy: %s\n",SDL_GetError());}
-        return copy;
-    }
-    SDL_Surface* res = rotozoomSurface(given_image, angle, 1.0, 1);
-    if (!res) 
-    {fprintf(stderr, "Error rotating image: %s\n", SDL_GetError());return NULL; }
-    
-    return res;
-}
 
-//----------------------------------------------------------------
-//Final functions 
-//----------------------------------------------------------------
+
 
 void adaptivePreprocessing(SDL_Surface *surface) {
     // Estimate noise
@@ -237,7 +199,6 @@ void adaptivePreprocessing(SDL_Surface *surface) {
     convertToBlackAndWhite(surface);
 }
 
-
 int main(int argc, char *argv[]) {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         printf("Error initializing SDL: %s\n", SDL_GetError());
@@ -250,7 +211,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Load the image
-    SDL_Surface *image = load_image(argv[1]);
+    SDL_Surface *image = loadImage(argv[1]);
 
     if (!image) {
         printf("Failed to load image: %s\n", IMG_GetError());
