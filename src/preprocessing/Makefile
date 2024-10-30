@@ -1,30 +1,28 @@
-# Define the compiler
+# Specify the compiler
 CC = gcc
 
-# Compiler flags for warnings and optimization
-CFLAGS = -Wall -O2 `sdl2-config --cflags` -I.
+# Compiler flags to include SDL2
+CFLAGS = -Wall -I/usr/include/SDL2 -D_REENTRANT
 
-# Linker flags for SDL2 and SDL2_image
-LDFLAGS = `sdl2-config --libs` -lSDL2_image -lm
-
-# Output binary name
-TARGET = preprocess
+# Linker flags for SDL2
+LDFLAGS = -lSDL2 -lSDL2_image -lm
 
 # Source files
-SRC = preprocess.c
-OBJ = $(SRC:.c=.o)
+SOURCES_PREPROCESS = preprocess.c
+SOURCES_ROTATE = man_rota.c
 
-# Default target to build the executable
-all: $(TARGET)
+# Executable names
+TARGET_PREPROCESS = preprocess
+TARGET_ROTATE = man_rota
 
-$(TARGET): $(OBJ)
-	$(CC) -o $(TARGET) $(OBJ) $(LDFLAGS)
+# Build main preprocessing executable
+$(TARGET_PREPROCESS): $(SOURCES_PREPROCESS)
+	$(CC) $(CFLAGS) -o $(TARGET_PREPROCESS) $(SOURCES_PREPROCESS) $(LDFLAGS)
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+# Build rotate_image executable
+$(TARGET_ROTATE): $(SOURCES_ROTATE)
+	$(CC) $(CFLAGS) -o $(TARGET_ROTATE) $(SOURCES_ROTATE) $(LDFLAGS)
 
 # Clean up build files
 clean:
-	rm -f $(TARGET) $(OBJ)
-
-.PHONY: all clean
+	rm -f $(TARGET_PREPROCESS) $(TARGET_ROTATE) *.o
