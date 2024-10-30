@@ -11,70 +11,98 @@
 #define MAX_LINE_LENGTH 100
 #define MAX_LINES 100
 
-char **ReadGridFromFile(const char *nom_fichier, int *nb_lignes) 
+
+/**
+ * @brief return a char[][], a grid of the crossword from a file.
+ *
+ * @param path Path of the file you want to extract the grid from.
+ * @param nb_lines Number of lines of the given file.
+ *
+ */
+char **ReadGridFromFile(const char *path, int *nb_lines) 
 {
-    FILE *fichier = fopen(nom_fichier, "r");
-    if (fichier == NULL) {
+    FILE *file = fopen(path, "r");
+    if (file == NULL) {
         printf("Error while opening file\n");
         return NULL;
     }
-    char **tableau = malloc(MAX_LINES * sizeof(char *));
-    if (tableau == NULL) {
+    char **grid = malloc(MAX_LINES * sizeof(char *));
+    if (grid == NULL) {
         printf("Error while addressing memory\n");
-        fclose(fichier);
+        fclose(file);
         return NULL;
     }
     char buffer[MAX_LINE_LENGTH];
-    *nb_lignes = 0;
-    while (fgets(buffer, MAX_LINE_LENGTH, fichier)) {
+    *nb_lines = 0;
+    while (fgets(buffer, MAX_LINE_LENGTH, file)) {
         buffer[strcspn(buffer, "\n")] = '\0'; // Retirer le '\n'
-        tableau[*nb_lignes] = malloc((strlen(buffer) + 1) * sizeof(char));
-        if (tableau[*nb_lignes] == NULL) {
+        grid[*nb_lines] = malloc((strlen(buffer) + 1) * sizeof(char));
+        if (grid[*nb_lines] == NULL) {
             printf("Erreur d'allocation de mémoire pour la ligne.\n");
-            fclose(fichier);
+            fclose(file);
             return NULL;
         }
-        strcpy(tableau[*nb_lignes], buffer);
-        (*nb_lignes)++;
+        strcpy(grid[*nb_lines], buffer);
+        (*nb_lines)++;
     }
-    fclose(fichier);
-    return tableau;
+    fclose(file);
+    return grid;
 }
 
+/**
+ * @brief Free each line of the grid and itself.
+ *
+ * @param grid The grid of the characters from the crossword.
+ * @param nb_lines Number of lines in the grid.
+ *
+ */
 
-void FreeBoard(char **tableau, int nb_lignes) {
-    for (int i = 0; i < nb_lignes; i++) {
-        free(tableau[i]);
+void FreeBoard(char **grid, int nb_lines) {
+    for (int i = 0; i < nb_lines; i++) {
+        free(grid[i]);
     }
-    free(tableau);
+    free(grid);
 }
 
-int CountNumLines(const char *nom_fichier) {
-    FILE *fichier = fopen(nom_fichier, "r");
-    if (fichier == NULL) {
+/**
+ * @brief return an integer value of the amount of lines from a file.
+ *
+ * @param path Path of the file you want to extract the grid from and count the lines.
+ *
+ */
+int CountNumLines(const char *path) {
+    FILE *file = fopen(path, "r");
+    if (file == NULL) {
         printf("Error while opening file\n");
         return -1;
     }
-    int nb_lignes = 0;
+    int nb_lines = 0;
     char buffer[100];
-    while (fgets(buffer, sizeof(buffer), fichier)) {
-        nb_lignes++;
+    while (fgets(buffer, sizeof(buffer), file)) {
+        nb_lines++;
     }
-    fclose(fichier);
-    return nb_lignes;
+    fclose(file);
+    return nb_lines;
 }
 
-char **ConvertToLowerGrid(char **tableau, int nb_lignes) {
+/**
+ * @brief return a char[][], a grid of the crossword but all letters to lower.
+ *
+ * @param grid The grid of the characters from the crossword.
+ * @param nb_lines Number of lines in the grid.
+ *
+ */
+char **ConvertToLowerGrid(char **grid, int nb_lines) {
 
-    char **tableau_min = malloc(nb_lignes * sizeof(char *));
+    char **tableau_min = malloc(nb_lines * sizeof(char *));
     if (tableau_min == NULL) {
         printf("Error while addressing memory\n");
         return NULL;
     }
 
-    for (int i = 0; i < nb_lignes; i++) {
+    for (int i = 0; i < nb_lines; i++) {
 
-        tableau_min[i] = malloc((strlen(tableau[i]) + 1) * sizeof(char));
+        tableau_min[i] = malloc((strlen(grid[i]) + 1) * sizeof(char));
         if (tableau_min[i] == NULL) {
             printf("Erreur d'allocation de mémoire pour la ligne %d.\n", i);
 
@@ -86,47 +114,57 @@ char **ConvertToLowerGrid(char **tableau, int nb_lignes) {
         }
 
 
-        for (int j = 0; j < strlen(tableau[i]); j++) {
-            tableau_min[i][j] = tolower(tableau[i][j]);
+        for (int j = 0; j < strlen(grid[i]); j++) {
+            tableau_min[i][j] = tolower(grid[i][j]);
         }
 
-        tableau_min[i][strlen(tableau[i])] = '\0';
+        tableau_min[i][strlen(grid[i])] = '\0';
     }
 
     return tableau_min;
 }
 
-
-int CountCharInLine(const char *nom_fichier) {
-    FILE *fichier = fopen(nom_fichier, "r");
-    if (fichier == NULL) {
+/**
+ * @brief return an integer value of the amount of character per line of the grid.
+ *
+ * @param path Path of the file you want to extract the grid from.
+ *
+ */
+int CountCharInLine(const char *path) {
+    FILE *file = fopen(path, "r");
+    if (file == NULL) {
         printf("Error while opening file\n");
         return -1;
     }
     char buffer[100];
-    if (fgets(buffer, sizeof(buffer), fichier)) {
+    if (fgets(buffer, sizeof(buffer), file)) {
         int longueur = strlen(buffer);
         if (buffer[longueur - 1] == '\n') {
             longueur--; 
         }
-        fclose(fichier);
+        fclose(file);
         return longueur;
     }
-    fclose(fichier);
+    fclose(file);
     return -1;
 }
+/**
+ * @brief convert a string to lower.
+ *
+ * @param word A string to convert to lower.
+ *
+ */
+char *ConvertWordToLower(const char *word) {
 
-char *ConvertWordToLower(const char *mot) {
-
-    char *mot_min = malloc((strlen(mot) + 1) * sizeof(char)); 
+    char *mot_min = malloc((strlen(word) + 1) * sizeof(char)); 
     if (mot_min == NULL) {
         printf("Error while addressing memory\n");
         return NULL;
     }
-    for (int i = 0; i < strlen(mot); i++) {
-        mot_min[i] = tolower(mot[i]);
+    for (int i = 0; i < strlen(word); i++) {
+        mot_min[i] = tolower(word[i]);
     }
-    mot_min[strlen(mot)] = '\0';
+    mot_min[strlen(word)] = '\0';
     return mot_min;
 }
 
@@ -144,10 +182,10 @@ int main(int argc, char **argv) {
         return 1;
     }
     char** grid_file = ReadGridFromFile(argv[1], &nblignetab);
-    char **tableau = ConvertToLowerGrid(grid_file,nblignetab);
+    char **grid = ConvertToLowerGrid(grid_file,nblignetab);
     for(size_t k = 0; k < nblignetab; k++) free(grid_file[k]);
     free(grid_file);
-    if (tableau == NULL) {
+    if (grid == NULL) {
         free(resword);
         return 1;
     }
@@ -160,14 +198,14 @@ int main(int argc, char **argv) {
     while (true) {
         if (!searching) {
 
-            if (resword[0] == tableau[i][j]) {
+            if (resword[0] == grid[i][j]) {
                 searching = true;
             } else {
 
                 if (j == nbcharinline - 1) {
                     if (i == nblignetab - 1) {
                         printf("Not Found\n");
-                        FreeBoard(tableau, nblignetab);
+                        FreeBoard(grid, nblignetab);
                         free(resword);
                         return 1;
                     } else {
@@ -184,11 +222,11 @@ int main(int argc, char **argv) {
             tempj = j;
             if (tempi + 1 < nblignetab) // Down
             {
-                if (resword[1] == tableau[tempi + 1][tempj]) {
+                if (resword[1] == grid[tempi + 1][tempj]) {
                     index = 1;
                     tempi++;
                     while (tempi < nblignetab && index < reswordCount) {
-                        if (resword[index] == tableau[tempi][tempj]) {
+                        if (resword[index] == grid[tempi][tempj]) {
                             tempi++;
                             index++;
                         } else {
@@ -197,7 +235,7 @@ int main(int argc, char **argv) {
                     }
                     if (index == reswordCount) {
                         printf("(%d,%d)(%d,%d)\n", j, i, tempj, tempi-1);
-                        FreeBoard(tableau, nblignetab);
+                        FreeBoard(grid, nblignetab);
                         free(resword);
                         return 0;
                     }
@@ -209,11 +247,11 @@ int main(int argc, char **argv) {
             tempj = j;
             if (tempi > 0) // Up
             {
-                if (resword[1] == tableau[tempi - 1][tempj]) {
+                if (resword[1] == grid[tempi - 1][tempj]) {
                     index = 1;
                     tempi--;
                     while (tempi >= 0 && index < reswordCount) {
-                        if (resword[index] == tableau[tempi][tempj]) {
+                        if (resword[index] == grid[tempi][tempj]) {
                             tempi--;
                             index++;
                         } else {
@@ -222,7 +260,7 @@ int main(int argc, char **argv) {
                     }
                     if (index == reswordCount) {
                         printf("(%d,%d)(%d,%d)\n", j, i, tempj, tempi+1);
-                        FreeBoard(tableau, nblignetab);
+                        FreeBoard(grid, nblignetab);
                         free(resword);
                         return 0;
                     }
@@ -232,11 +270,11 @@ int main(int argc, char **argv) {
             tempj = j;
             if (tempj + 1 < nbcharinline) // Right
             {
-                if (resword[1] == tableau[tempi][tempj + 1]) {
+                if (resword[1] == grid[tempi][tempj + 1]) {
                     index = 1;
                     tempj++;
                     while (tempj < nbcharinline && index < reswordCount) {
-                        if (resword[index] == tableau[tempi][tempj]) {
+                        if (resword[index] == grid[tempi][tempj]) {
                             tempj++;
                             index++;
                         } else {
@@ -245,7 +283,7 @@ int main(int argc, char **argv) {
                     }
                     if (index == reswordCount) {
                         printf("(%d,%d)(%d,%d)\n", j, i, tempj-1, tempi);
-                        FreeBoard(tableau, nblignetab);
+                        FreeBoard(grid, nblignetab);
                         free(resword);
                         return 0;
                     }
@@ -255,11 +293,11 @@ int main(int argc, char **argv) {
             tempj = j;
             if (tempj > 0) // Left
             {
-                if (resword[1] == tableau[tempi][tempj - 1]) {
+                if (resword[1] == grid[tempi][tempj - 1]) {
                     index = 1;
                     tempj--;
                     while (tempj >= 0 && index < reswordCount) {
-                        if (resword[index] == tableau[tempi][tempj]) {
+                        if (resword[index] == grid[tempi][tempj]) {
                             tempj--;
                             index++;
                         } else {
@@ -268,7 +306,7 @@ int main(int argc, char **argv) {
                     }
                     if (index == reswordCount) {
                         printf("(%d,%d)(%d,%d)\n", j, i, tempj +1, tempi);
-                        FreeBoard(tableau, nblignetab);
+                        FreeBoard(grid, nblignetab);
                         free(resword);
                         return 0;
                     }
@@ -278,12 +316,12 @@ int main(int argc, char **argv) {
             tempj = j;
             if (tempi > 0 && tempj > 0) // Up Left
             {
-                if (resword[1] == tableau[tempi - 1][tempj - 1]) {
+                if (resword[1] == grid[tempi - 1][tempj - 1]) {
                     index = 1;
                     tempi--;
                     tempj--;
                     while (tempi >= 0 && tempj >= 0 && index < reswordCount) {
-                        if (resword[index] == tableau[tempi][tempj]) {
+                        if (resword[index] == grid[tempi][tempj]) {
                             tempi--;
                             tempj--;
                             index++;
@@ -293,7 +331,7 @@ int main(int argc, char **argv) {
                     }
                     if (index == reswordCount) {
                         printf("(%d,%d)(%d,%d)\n", j, i, tempj + 1, tempi + 1);
-                        FreeBoard(tableau, nblignetab);
+                        FreeBoard(grid, nblignetab);
                         free(resword);
                         return 0;
                     }
@@ -303,12 +341,12 @@ int main(int argc, char **argv) {
             tempj = j;
             if (tempi > 0 && tempj + 1 < nbcharinline) // Up Right
             {
-                if (resword[1] == tableau[tempi - 1][tempj + 1]) {
+                if (resword[1] == grid[tempi - 1][tempj + 1]) {
                     index = 1;
                     tempi--;
                     tempj++;
                     while (tempi >= 0 && tempj < nbcharinline && index < reswordCount) {
-                        if (resword[index] == tableau[tempi][tempj]) {
+                        if (resword[index] == grid[tempi][tempj]) {
                             tempi--;
                             tempj++;
                             index++;
@@ -318,7 +356,7 @@ int main(int argc, char **argv) {
                     }
                     if (index == reswordCount) {
                         printf("(%d,%d)(%d,%d)\n", j, i, tempj - 1, tempi + 1);
-                        FreeBoard(tableau, nblignetab);
+                        FreeBoard(grid, nblignetab);
                         free(resword);
                         return 0;
                     }
@@ -328,12 +366,12 @@ int main(int argc, char **argv) {
             tempj = j;
             if (tempi + 1 < nblignetab && tempj > 0) // Down Left
             {
-                if (resword[1] == tableau[tempi + 1][tempj - 1]) {
+                if (resword[1] == grid[tempi + 1][tempj - 1]) {
                     index = 1;
                     tempi++;
                     tempj--;
                     while (tempi < nblignetab && tempj >= 0 && index < reswordCount) {
-                        if (resword[index] == tableau[tempi][tempj]) {
+                        if (resword[index] == grid[tempi][tempj]) {
                             tempi++;
                             tempj--;
                             index++;
@@ -343,7 +381,7 @@ int main(int argc, char **argv) {
                     }
                     if (index == reswordCount) {
                         printf("(%d,%d)(%d,%d)\n", j, i, tempj + 1, tempi -1);
-                        FreeBoard(tableau, nblignetab);
+                        FreeBoard(grid, nblignetab);
                         free(resword);
                         return 0;
                     }
@@ -353,12 +391,12 @@ int main(int argc, char **argv) {
             tempj = j;
             if (tempi + 1 < nblignetab && tempj + 1 < nbcharinline) // Down Right
             {
-                if (resword[1] == tableau[tempi + 1][tempj + 1]) {
+                if (resword[1] == grid[tempi + 1][tempj + 1]) {
                     index = 1;
                     tempi++;
                     tempj++;
                     while (tempi < nblignetab && tempj < nbcharinline && index < reswordCount) {
-                        if (resword[index] == tableau[tempi][tempj]) {
+                        if (resword[index] == grid[tempi][tempj]) {
                             tempi++;
                             tempj++;
                             index++;
@@ -368,7 +406,7 @@ int main(int argc, char **argv) {
                     }
                     if (index == reswordCount) {
                         printf("(%d,%d)(%d,%d)\n", j, i, tempj - 1, tempi - 1);
-                        FreeBoard(tableau, nblignetab);
+                        FreeBoard(grid, nblignetab);
                         free(resword);
                         return 0;
                     }
@@ -377,7 +415,7 @@ int main(int argc, char **argv) {
             if (j == nbcharinline - 1) {
                     if (i == nblignetab - 1) {
                         printf("Not Found\n");
-                        FreeBoard(tableau, nblignetab);
+                        FreeBoard(grid, nblignetab);
                         free(resword);
                         return 1;
                     } else {
@@ -389,7 +427,7 @@ int main(int argc, char **argv) {
                 }
         }
     }
-    FreeBoard(tableau, nblignetab);
+    FreeBoard(grid, nblignetab);
     free(resword);
     return 1;
 }
