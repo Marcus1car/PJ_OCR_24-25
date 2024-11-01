@@ -2,6 +2,7 @@
 #include <SDL2/SDL_image.h>
 #include <err.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "core_network.h"
 
@@ -13,6 +14,7 @@
  * @brief Returns a pointer to an Neural network struct initialized for OCR
  *
  * @param hidden The size of the hidden layer
+ * @return A pointer to the initialized neural network
  */
 Network* init_ocr(size_t hidden) {
   if (hidden <= 0) {
@@ -25,6 +27,7 @@ Network* init_ocr(size_t hidden) {
  * @brief Loads an SDL_Surface from disk
  *
  * @param path The path of the image
+ * @return A pointer to the SDL Surface corresponding to the loaded image
  */
 SDL_Surface* load_image(const char* path) {
   SDL_Surface* t = IMG_Load(path);
@@ -37,6 +40,7 @@ SDL_Surface* load_image(const char* path) {
  * @brief Compute the OTSU threshold of a surface
  *
  * @param surface - An SDL surface to which OTSU threshold needs to be computed
+ * @return The otsu threshold
  */
 int calculate_otsu_threshold(SDL_Surface* surface) {
   int width = surface->w;
@@ -156,6 +160,7 @@ void to_gs(SDL_Surface* surface) {
  * intensity (i.e. gray scale value of pixel), between 0 (black) and 1 (white)
  *
  * @param surface The surface to convert to double list
+ * @return A double pointer correspoding to the double list
  */
 double* to_double_array(SDL_Surface* surface) {
   double* gs_array = calloc(IMG_H * IMG_W, sizeof(double));
@@ -182,6 +187,7 @@ double* to_double_array(SDL_Surface* surface) {
  *
  * @param ocr The neural network to predict against
  * @param surface The surface to perform the test
+ * @return A double pointer correspoding to the double list of output
  */
 double* predict_from_surface(Network* ocr, SDL_Surface* surface) {
   if (surface->h != IMG_H || surface->w != IMG_W)
@@ -207,11 +213,151 @@ double* predict_from_surface(Network* ocr, SDL_Surface* surface) {
       gs_array[y * IMG_W + x] = ((double)gray2);
     }
   }
-  // NOTE: Assumes NN output size is OUTPUT_SIZE or more (expect segfault otherwise)
+  // NOTE: Assumes NN output size is OUTPUT_SIZE or more (expect segfault
+  // otherwise)
   predict_nn(ocr, gs_array);
   for (size_t k = 0; k < OUTPUT_SIZE; k++) {
     result[k] = ocr->output[k];
   }
   free(gs_array);
   return result;
+}
+
+/*** Helper functions ***/
+
+/**
+ * @brief UNSAFE - returns a double array of expected results from neural
+ * network based on the first letter of the loaded image
+ *
+ * @param filename Path to the filename. Must be at least one character long and
+ * the first character must be a-z
+ * @return A double pointer correspoding to the double list of the expected
+ * results
+ */
+double* get_target(const char* filename) {
+  double* res = calloc(26, sizeof(double));
+  res[filename[0] - 'a'] = 1;
+  return res;
+}
+
+/**
+ * @brief Swaps two doubles
+ *
+ * @param a Address of pointer to a
+ * @param b Address of pointer to b
+ */
+void swap(double** a, double** b) {
+  double* temp = *a;
+  *a = *b;
+  *b = temp;
+}
+
+/**
+ * @brief Shuffles two arrays of double at the same time, which both are of size
+ * size
+ *
+ * @param array1 Pointer to a double array
+ * @param array2 Pointer to the second double array
+ * @param size size of both arrays
+ */
+void shuffle(double** array1, double** array2, size_t size) {
+  srand(time(NULL));
+  for (int i = size - 1; i > 0; i--) {
+    int j = rand() % (i + 1);
+    swap(&array1[i], &array1[j]);
+    swap(&array2[i], &array2[j]);
+  }
+}
+
+/**
+ * @brief Prints to stdout a double between 0 and 1 mapped to color gradients
+ * blue to violed, and rounded to 3 decimals.
+ *
+ * @param value double to print
+ */
+void printColor(double value) {
+  if (value < 0.0)
+    value = 0.0;
+  if (value > 1.0)
+    value = 1.0;
+
+  int red = (int)(value * 128);
+  int green = 0;
+  int blue = (int)(255 - value * 127);
+  printf("\033[38;2;%d;%d;%dm%.3f\033[0m", red, green, blue, value);
+}
+
+/**
+ * @brief Return the index of the maximum in a double array of size size
+ *
+ * @param arr the array
+ * @param size the size of the array
+ * @return The index of the max
+ */
+int indexOfMax(double* arr, size_t size) {
+  if (size == 0) {
+    return -1;
+  }
+
+  int maxIndex = 0;
+  for (size_t i = 1; i < size; i++) {
+    if (arr[i] > arr[maxIndex]) {
+      maxIndex = i;
+    }
+  }
+
+  return maxIndex;
+}
+
+/**
+ * @brif Return the position of the element ith element if the array was sorted
+ * in decending order (position starts at 1)
+ *
+ * @param arr the array
+ * @param size the size of the array
+ * @param i the position of the element in the array to get the position of
+ * @return The value of the rank of the ith element (starts at 1)
+ */
+int get_rank(double* arr, size_t size, size_t i) {
+  int rank = 1;
+  double target = arr[i];
+
+  for (size_t j = 0; j < size; j++) {
+    if (arr[j] > target) {
+      rank++;
+    }
+  }
+
+  return rank;
+}
+
+/**
+ * @brief prints the current iteration of learning. Only used internally for
+ * debugging purposes.
+ */
+void print_current_iter(const Network* net,
+                        const char current_letter,
+                        const size_t iter,
+                        const size_t max_iter) {
+  printf("--- %ld/%ld ---\n", iter, max_iter);
+  printf("CHAR = %c: [", current_letter);
+  for (char i = 0; i < 26; i++) {
+    printf("%c = ", 'A' + i);
+    printColor(net->output[(size_t)i]);
+    printf(", ");
+  }
+  printf("] Best guess: %c ", indexOfMax(net->output, 26) + 'A');
+  printf("Rank: ");
+  int rank = get_rank(net->output, 26, current_letter - 'A');
+  if (rank == 1) {
+    printf("\033[32m\033[1m%d\033[0m", rank);
+  } else if (rank < 5) {
+    printf("\033[33m\033[1m%d\033[0m", rank);
+  } else {
+    printf("\033[31m\033[1m%d\033[0m", rank);
+  }
+  if (net->output[current_letter - 'A'] < (double)0.5 && rank == 1)
+    printf(" \033[31m\033[1mERROR PROBA\033[0m");
+  printf("\n");
+  printf("-----\n");
 }

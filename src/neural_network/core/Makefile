@@ -5,19 +5,22 @@ NVC_PMGMT = -acc
 
 
 CC = gcc
-CC_FLAGS = -Wall -Wextra -std=c17 -fsanitize=address -g -O2 -pedantic -Wshadow 
+CC_FLAGS = -Wall -Wextra -std=c17 -fsanitize=address -g -O2 -pedantic -Wshadow
 LIBS = -lm
 SDL_LIBS = -lSDL2 -lSDL2_image
 BUILD_DIR = ./build
 DEPS = core_network.c
+DEPS_OCR = ocr.c
 OPENMP = -fopenacc -foffload=-lm #-foffload=nvptx-none   -foffload=-lm
 
 POC 			= $(CC) $(CC_FLAGS) $(DEPS) poc.c -o $(BUILD_DIR)/poc $(LIBS)
-TRAINING_IMGS	= $(CC) $(CC_FLAGS)  $(DEPS) ocr.c training_images.c -o $(BUILD_DIR)/training_images $(LIBS) $(SDL_LIBS)
+TRAINING_IMGS	= $(CC) $(CC_FLAGS) $(DEPS) $(DEPS_OCR) training_images.c -o $(BUILD_DIR)/training_images $(LIBS) $(SDL_LIBS)
 POC_LOAD		= $(CC) $(CC_FLAGS) $(DEPS) poc_load.c -o $(BUILD_DIR)/poc_load $(LIBS) 
+TEST_ACCURACY	= $(CC) $(CC_FLAGS) $(DEPS) $(DEPS_OCR) test_accuracy.c -o $(BUILD_DIR)/test_accuracy $(LIBS) $(SDL_LIBS)
+TEST_IMAGE		= $(CC) $(CC_FLAGS) $(DEPS) $(DEPS_OCR) test_image.c -o $(BUILD_DIR)/test_image $(LIBS) $(SDL_LIBS)
 
-all: poc training_images poc_load
-all_para: poc_para training_images_para poc_load_para
+all: poc training_images poc_load test_accuracy test_image
+#all_para: poc_para training_images_para poc_load_para 
 all_nvc: nvc_training_images
 
 build_dir:
@@ -32,6 +35,12 @@ poc_load: build_dir
 
 training_images: build_dir
 	$(TRAINING_IMGS)
+
+test_accuracy: build_dir
+	$(TEST_ACCURACY)
+
+test_image: build_dir
+	$(TEST_IMAGE)
 
 # poc_para: build_dir
 # 	$(POC) $(OPENMP)

@@ -1,12 +1,20 @@
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_events.h>
+#include <SDL2/SDL_render.h>
+#include <SDL2/SDL_video.h>
 #include <err.h>
 #include <stdlib.h>
+
 #include "ocr.h"
 
 int main(int argc, char** argv) {
+  // *FIXME: Unknown memory leak on libdbus and llvm in WSL??
+
   if (argc != 4) {
     errx(EXIT_FAILURE,
          "Usage %s <ocr model data> <image path> <0|1, 1 = bw; 0 = "
-         "gray scale>", argv[0]);
+         "gray scale>",
+         argv[0]);
   }
 
   Network* ocr = load_nn_data(argv[1]);
@@ -28,7 +36,7 @@ int main(int argc, char** argv) {
 
   printf("Predictions: \n");
   for (size_t k = 0; k < OUTPUT_SIZE; k++) {
-    printf("%c - %3.3f\n", 'a' + k, result[k]);
+    printf("%c - %3.3f\n", (char)('a' + k), result[k]);
   }
 
   free(result);
@@ -39,16 +47,15 @@ int main(int argc, char** argv) {
   }
 
   SDL_Window* window =
-      SDL_CreateWindow("SDL Display Surface", SDL_WINDOWPOS_UNDEFINED,
-                       SDL_WINDOWPOS_UNDEFINED, 480, 480, SDL_WINDOW_SHOWN);
+      SDL_CreateWindow("Test image", SDL_WINDOWPOS_CENTERED,
+                       SDL_WINDOWPOS_CENTERED, 480, 480, SDL_WINDOW_SHOWN);
   if (!window) {
     printf("Window could not be created! SDL_Error: %s\n", SDL_GetError());
     SDL_Quit();
     return 1;
   }
 
-  SDL_Renderer* renderer =
-      SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+  SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, 0);
   if (!renderer) {
     printf("Renderer could not be created! SDL_Error: %s\n", SDL_GetError());
     SDL_DestroyWindow(window);
@@ -56,7 +63,7 @@ int main(int argc, char** argv) {
     return 1;
   }
   SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, img);
-  SDL_FreeSurface(img);  // Free the surface after creating the texture
+  SDL_FreeSurface(img);
   if (!texture) {
     printf("Unable to create texture! SDL_Error: %s\n", SDL_GetError());
     SDL_DestroyRenderer(renderer);
@@ -64,15 +71,14 @@ int main(int argc, char** argv) {
     SDL_Quit();
     return 1;
   }
-  SDL_FreeSurface(img);
-
+  // SDL_FreeSurface(img);
 
   SDL_RenderClear(renderer);
   SDL_RenderCopy(renderer, texture, NULL, NULL);
   SDL_RenderPresent(renderer);
 
   SDL_Event e;
-  int quit = 0;
+  char quit = 0;
   while (!quit) {
     while (SDL_PollEvent(&e) != 0) {
       if (e.type == SDL_QUIT) {
@@ -80,10 +86,11 @@ int main(int argc, char** argv) {
       }
     }
   }
-    SDL_DestroyTexture(texture);
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
+
+  SDL_DestroyTexture(texture);
+  SDL_DestroyRenderer(renderer);
+  SDL_DestroyWindow(window);
+  SDL_Quit();
 
   return EXIT_SUCCESS;
 }

@@ -11,111 +11,20 @@
 #include "core_network.h"
 #include "ocr.h"
 
-// Constant macros to define constants
-#define IMG_W 32
-#define IMG_H 32
+// #define IMG_W 32
+// #define IMG_H 32
 
 #define INPUT_LAYER_SIZE IMG_H* IMG_W
 #define HIDDEN_LAYER_SIZE 256  // Arbitrary
 #define OUTPUT_LAYER_SIZE 26
-
-double* get_target(char* filename) {
-  double* res = calloc(26, sizeof(double));
-  res[filename[0] - 'a'] = 1;
-  return res;
-}
-
-void swap(double** a, double** b) {
-  double* temp = *a;
-  *a = *b;
-  *b = temp;
-}
-
-void shuffle(double** array1, double** array2, size_t size) {
-  srand(time(NULL));
-  for (int i = size - 1; i > 0; i--) {
-    int j = rand() % (i + 1);
-    swap(&array1[i], &array1[j]);
-    swap(&array2[i], &array2[j]);
-  }
-}
-
-void printColor(double value) {
-  // Ensure value is between 0.0 and 1.0
-  if (value < 0.0)
-    value = 0.0;
-  if (value > 1.0)
-    value = 1.0;
-
-  // Calculate red and blue components for blue-to-purple transition
-  int red = (int)(value * 128);  // Red component increases from 0 to 128
-  int green = 0;                 // Green component stays at 0
-  int blue =
-      (int)(255 - value * 127);  // Blue component decreases from 255 to 128
-
-  // ANSI escape code for RGB foreground color
-  printf("\033[38;2;%d;%d;%dm%.3f\033[0m", red, green, blue, value);
-}
-int indexOfMax(double* arr, int size) {
-  if (size <= 0) {
-    return -1;  // Return -1 for empty array or invalid size
-  }
-
-  int maxIndex = 0;
-  for (int i = 1; i < size; i++) {
-    if (arr[i] > arr[maxIndex]) {
-      maxIndex = i;
-    }
-  }
-
-  return maxIndex;
-}
-int get_rank(double arr[], int size, int i) {
-  int rank = 1;
-  double target = arr[i];
-
-  for (int j = 0; j < size; j++) {
-    if (arr[j] > target) {
-      rank++;
-    }
-  }
-
-  return rank;
-}
-
-void print_current_iter(const Network* net,
-                        const char current_letter,
-                        const size_t iter,
-                        const size_t max_iter) {
-  printf("--- %ld/%ld ---\n", iter, max_iter);
-  printf("CHAR = %c: [", current_letter);
-  for (char i = 0; i < 26; i++) {
-    printf("%c = ", 'A' + i);
-    printColor(net->output[(size_t)i]);
-    printf(", ");
-  }
-  printf("] Best guess: %c ", indexOfMax(net->output, 26) + 'A');
-  printf("Rank: ");
-  int rank = get_rank(net->output, 26, current_letter - 'A');
-  if (rank == 1) {
-    printf("\033[32m\033[1m%d\033[0m", rank);
-  } else if (rank < 5) {
-    printf("\033[33m\033[1m%d\033[0m", rank);
-  } else {
-    printf("\033[31m\033[1m%d\033[0m", rank);
-  }
-  if (net->output[current_letter - 'A'] < (double)0.5 && rank == 1)
-    printf(" \033[31m\033[1mERROR PROBA\033[0m");
-  printf("\n");
-  printf("-----\n");
-}
 
 int main(int argc, char** argv) {
   if (argc != 8)
     errx(EXIT_FAILURE,
          "Usage: %s <hidden_fct> <output_fct> <training_steps> "
          "<training_dataset_directory> <testing_dataset_directory> <0|1, 0 = "
-         "grayscale, 1 = bw> <lr>", argv[0]);
+         "grayscale, 1 = bw> <lr>",
+         argv[0]);
   ActivationFunction hidden_fct = (ActivationFunction)atoi(argv[1]);
   ActivationFunction output_fct = (ActivationFunction)atoi(argv[2]);
   int training_steps_ = atoi(argv[3]);
@@ -137,9 +46,9 @@ int main(int argc, char** argv) {
   /*printf("hidden_fct = %ld\noutput_fct = %ld\nsteps = %ld\n", hidden_fct,
          output_fct, training_steps);*/
   Network* network = init_nn(INPUT_LAYER_SIZE, HIDDEN_LAYER_SIZE,
-                                  OUTPUT_LAYER_SIZE, hidden_fct, output_fct);
+                             OUTPUT_LAYER_SIZE, hidden_fct, output_fct);
   NetworkTrainer* trainer = init_nt(network);
-  
+
   if (trainer == NULL || network == NULL)
     errx(EXIT_FAILURE, "Error while allocating network and trainer");
 
