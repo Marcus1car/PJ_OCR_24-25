@@ -9,7 +9,7 @@ CC_FLAGS = -Wall -Wextra -std=c17 -fsanitize=address -g -O2 -pedantic -Wshadow
 LIBS = -lm
 SDL_LIBS = -lSDL2 -lSDL2_image
 BUILD_DIR = ./build
-DEPS = neural.c
+DEPS = core_network.c
 OPENMP = -fopenacc -foffload=-lm #-foffload=nvptx-none   -foffload=-lm
 
 POC 			= $(CC) $(CC_FLAGS) $(DEPS) poc.c -o $(BUILD_DIR)/poc $(LIBS)
@@ -33,14 +33,14 @@ poc_load: build_dir
 training_images: build_dir
 	$(TRAINING_IMGS)
 
-poc_para: build_dir
-	$(POC) $(OPENMP)
+# poc_para: build_dir
+# 	$(POC) $(OPENMP)
 
-poc_load_para: build_dir
-	$(POC_LOAD) $(OPENMP)
+# poc_load_para: build_dir
+# 	$(POC_LOAD) $(OPENMP)
 
-training_images_para: build_dir
-	$(TRAINING_IMGS) $(OPENMP)
+# training_images_para: build_dir
+# 	$(TRAINING_IMGS) $(OPENMP)
 
 #parallel compilation using openaac and nvc compiler (Nvidia HPC SDK)
 nvc_training_images: build_dir
