@@ -1,5 +1,3 @@
-#include "neural.h"
-
 #include <err.h>
 #include <math.h>
 #include <omp.h>
@@ -7,63 +5,74 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
 // #include <omp.h>
+
+#include "neural.h"
 
 /*
  * Activation functions and their derivatives (prefixed with d_)
+ * NOTE: Softmax is not defined as a function here
  */
-double sigmoid(double f) {
-  return 1.0 / (1.0 + exp(-f));
+
+/*RELU*/
+double relu(double x) {
+  return x > 0 ? x : 0;
 }
-double d_sigmoid(double f) {
-  return f * (1.0 - f);
+double d_relu(double x) {
+  return x > 0 ? 1 : 0;
 }
-double relu(double f) {
-  return f > 0 ? f : 0;
+
+/*Exponential relu with some factor*/
+double elu(double x) {
+  return x > 0 ? x : 0.3 * (exp(x) - 1);
 }
-double d_relu(double f) {
-  return f > 0 ? 1 : 0;
+double d_elu(double x) {
+  return x > 0 ? 1 : 0.3 * (exp(x));
 }
-double elu(double f) {
-  return f > 0 ? f : 0.3 * (exp(f) - 1);
+
+/*Leaky relu*/
+double lrelu(double x) {
+  return x > 0 ? x : 0.01 * x;
 }
-double d_elu(double f) {
-  return f > 0 ? 1 : 0.3 * (exp(f));
+double d_lrelu(double x) {
+  return x > 0 ? 1 : 0.01;
 }
-double lrelu(double f) {
-  return f > 0 ? f : 0.01 * f;
+
+/*Sigmoid*/
+double sigmoid(double x) {
+  return 1.0 / (1.0 + exp(-x));
 }
-double d_lrelu(double f) {
-  return f > 0 ? 1 : 0.01;
+double d_sigmoid(double x) {
+  return x * (1.0 - x);
 }
-double tanh_(double f) {
-  return tanh(f);
+
+/*Hyperbolic tangent*/
+double tanh_(double x) {
+  return tanh(x);
 }
-double d_tanh(double f) {
-  double t = tanh(f);
-  return fma(t, t, -1);
+double d_tanh(double x) {
+  double t = tanh(x);
+  return fma(t, t, -1);  // fma(x,y,z) = x*y+z without losing precision
 }
-// fma(x,y,z) = x*y+z without losing precision
 
 /**
  * @brief Initialize a neural network and returns a pointer to a newly allocated
  * struct.
  *
- * **NOTE**: The struct should be freed using the network_free() function.
+ * **NOTE**: The struct should be freed using the free_nn() function.
  *
- * @param n_inputs Size of the input layer
- * @param n_hidden Size of the hidden layer
- * @param n_outputs Size of the output layer
+ * @param input_layer_size Size of the input layer
+ * @param hidden_layer_size Size of the hidden layer
+ * @param output_layer_size Size of the output layer
  * @param activation_hidden Activation function of the hidden layer (Available
  * functions are in the header associated with this file).
  * @param activation_output Activation function of the output layer (Available
  * functions are in the header associated with this file).
  *
  */
-Network* network_init(size_t n_inputs,
-                      size_t n_hidden,
-                      size_t n_outputs,
+Network* init_nn(size_t input_layer_size,
+                      size_t hidden_layer_size,
+                      size_t output_layer_size,
                       ActivationFunction activation_hidden,
                       ActivationFunction activation_output) {
   Network* network = (Network*)malloc(sizeof(Network));
@@ -77,42 +86,41 @@ Network* network_init(size_t n_inputs,
 
   srand(time(NULL));
 
-  network->n_inputs = n_inputs;
-  network->n_hidden = n_hidden;
-  network->n_outputs = n_outputs;
+  network->nb_input = input_layer_size;
+  network->nb_hidden = hidden_layer_size;
+  network->nb_output = output_layer_size;
 
   network->ouput_activation = activation_output;
   network->hidden_activation = activation_hidden;
 
-  network->weights_hidden =
-      calloc(n_inputs * n_hidden, sizeof(*network->weights_hidden));
-  network->biases_hidden = calloc(n_hidden, sizeof(*network->biases_hidden));
-  network->weights_output =
-      calloc(n_hidden * n_outputs, sizeof(*network->weights_output));
-  network->biases_output = calloc(n_outputs, sizeof(*network->biases_output));
-  network->hidden = calloc(n_hidden, sizeof(*network->hidden));
-  network->output = calloc(n_outputs, sizeof(*network->output));
+  network->hidden = calloc(hidden_layer_size, sizeof(double));
+  network->output = calloc(output_layer_size, sizeof(double));
+
+  network->hidden_biases = calloc(hidden_layer_size, sizeof(double));
+  network->output_biases = calloc(output_layer_size, sizeof(double));
+
+  network->hidden_weights =
+      calloc(input_layer_size * hidden_layer_size, sizeof(double));
+  network->output_weights =
+      calloc(hidden_layer_size * output_layer_size, sizeof(double));
 
   if (network->output == NULL || network->hidden == NULL ||
-      network->biases_hidden == NULL || network->biases_output == NULL ||
-      network->weights_hidden == NULL || network->weights_output == NULL) {
+      network->hidden_biases == NULL || network->output_biases == NULL ||
+      network->hidden_weights == NULL || network->output_weights == NULL) {
     errx(EXIT_FAILURE, "Memory allocation failed");
   }
 
   // initialize weights to random values
-  for (size_t i = 0; i < n_inputs * n_hidden; i++) {
-    // network->weights_hidden[i] = ((double)rand() / RAND_MAX) * 2 - 1;
-    network->weights_hidden[i] = ((double)rand() / (RAND_MAX / 2) - 1.) / 2.;
+  for (size_t i = 0; i < input_layer_size * hidden_layer_size; i++) {
+    network->hidden_weights[i] = ((double)rand() / (RAND_MAX / 2) - 1.) / 2.;
   }
 
-  for (size_t i = 0; i < n_hidden * n_outputs; i++) {
-    // network->weights_output[i] = ((double)rand() / RAND_MAX) * 2 - 1;
-    network->weights_output[i] = ((double)rand() / (RAND_MAX / 2) - 1.) / 2.;
+  for (size_t i = 0; i < hidden_layer_size * output_layer_size; i++) {
+    network->output_weights[i] = ((double)rand() / (RAND_MAX / 2) - 1.) / 2.;
+  }
 
-  } /*
-   for (size_t i = 0; i < n_outputs; i++) {
-       network->output[i] = ((double)rand() / RAND_MAX) * 2 - 1;
-   }*/
+  // Define function pointers for activation functions of hidden and output
+  // layer
 
   switch (network->hidden_activation) {
     case SIGMOID:
@@ -140,6 +148,8 @@ Network* network_init(size_t n_inputs,
       break;
   }
 
+  // Define function pointers for derivatives of activation functions
+  // of hidden and output layer for back propagation
   switch (network->ouput_activation) {
     case SIGMOID:
       network->output_fct = &sigmoid;
@@ -173,26 +183,24 @@ Network* network_init(size_t n_inputs,
 }
 
 /**
- * @brief Frees a neural network heap-allocated memory and invalidates its
- * pointer
+ * @brief Frees a neural network heap-allocated memory
  *
  * @param network A pointer to the neural network structure to free
  *
  */
-void network_free(Network* network) {
-  free(network->weights_hidden);
-  free(network->biases_hidden);
-  free(network->weights_output);
-  free(network->biases_output);
+void free_nn(Network* network) {
+  free(network->hidden_weights);
+  free(network->hidden_biases);
+  free(network->output_weights);
+  free(network->output_biases);
   free(network->hidden);
   free(network->output);
   free(network);
-  network = NULL;
 }
 
 /**
- * @brief Forward propagates the input data to the neural network. Result is
- * stored in the output pointer list of the neural network struct
+ * @brief Forward propagates (i.e predicts the result of) the input data.
+ * Result is stored in the output pointer list of the neural network struct
  *
  * @param network A pointer to the neural network structure to perform the
  * forward propagation.
@@ -200,66 +208,63 @@ void network_free(Network* network) {
  * @param input A double pointer list of size equal to the input layer size
  *
  */
-void network_predict(Network* network, double* input) {
-  // //#pragma aac kernels
+void predict_nn(Network* network, double* input) {
   // * NOTE: Parallelization fails when using function pointers
-#pragma acc kernels
+  // #pragma acc kernels
   {
     // #pragma acc parallel loop
-    for (size_t c = 0; c < network->n_hidden; c++) {
+    for (size_t c = 0; c < network->nb_hidden; c++) {
       double sum = 0;
       // #pragma acc loop reduction(+ : sum)
-      for (size_t r = 0; r < network->n_inputs; r++) {
-        sum += input[r] * network->weights_hidden[r * network->n_hidden + c];
+      for (size_t r = 0; r < network->nb_input; r++) {
+        sum += input[r] * network->hidden_weights[r * network->nb_hidden + c];
       }
       network->hidden[c] =
-          relu /*(*network->hidden_fct)*/ (sum + network->biases_hidden[c]);
+          /*relu*/ (*network->hidden_fct)(sum + network->hidden_biases[c]);
     }
 
     if (network->ouput_activation == SOFTMAX) {
       // #pragma acc parallel loop
-      for (size_t c = 0; c < network->n_outputs; c++) {
+      for (size_t c = 0; c < network->nb_output; c++) {
         double sum = 0.0;
         // #pragma acc loop reduction(+ : sum)
-        for (size_t r = 0; r < network->n_hidden; r++) {
+        for (size_t r = 0; r < network->nb_hidden; r++) {
           sum += network->hidden[r] *
-                 network->weights_output[r * network->n_outputs + c];
+                 network->output_weights[r * network->nb_output + c];
         }
-        network->output[c] = sum + network->biases_output[c];
+        network->output[c] = sum + network->output_biases[c];
       }
 
       double max_output = network->output[0];
-      for (size_t i = 0; i < network->n_outputs; i++) {
+      for (size_t i = 0; i < network->nb_output; i++) {
         if (network->output[i] > max_output) {
           max_output = network->output[i];
         }
       }
 
-      // Compute the exponentials and sum them
       double sum_exp = 0;
       // #pragma acc parallel loop reduction(+ : sum_exp)
-      for (size_t i = 0; i < network->n_outputs; i++) {
+      for (size_t i = 0; i < network->nb_output; i++) {
         network->output[i] = exp(network->output[i] - max_output);
         sum_exp += network->output[i];
       }
 
-      // Normalize by dividing each by the sum of exponentials
       // #pragma acc parallel loop
-      for (size_t i = 0; i < network->n_outputs; i++) {
+      for (size_t i = 0; i < network->nb_output; i++) {
         network->output[i] /= sum_exp;
       }
     } else {
       // #pragma acc parallel loop
-      for (size_t c = 0; c < network->n_outputs; c++) {
+      for (size_t c = 0; c < network->nb_output; c++) {
         double sum = 0;
         // #pragma acc loop reduction(+ : sum)
-        for (size_t r = 0; r < network->n_hidden; r++) {
+        for (size_t r = 0; r < network->nb_hidden; r++) {
           sum += network->hidden[r] *
-                 network->weights_output[r * network->n_outputs + c];
+                 network->output_weights[r * network->nb_output + c];
         }
 
         network->output[c] =
-            relu /*(*network->output_fct)*/ (sum + network->biases_output[c]);
+            /*relu*/ (*network->output_fct)(sum + network->output_biases[c]);
       }
     }
   }
@@ -267,8 +272,8 @@ void network_predict(Network* network, double* input) {
 
 /**
  * @brief Prints in stdout wether the hidden or output layer is dead (i.e. all
- * of the neurons from a layer are equal to 0). Happends frequently when
- * learning rate is too high while using RELU.
+ * of the neurons from a layer are equal to 0). Layers die when
+ * learning rate is too high and using RELU or its variants.
  *
  * @param network A pointer to the neural network structure to test its layers.
  *
@@ -277,18 +282,15 @@ void is_network_dead(const Network* network) {
   const double threshold = 0.00001;
   char hidden_dead = 1;
   char output_dead = 1;
-  for (size_t k = 0; k < network->n_hidden; k++) {
+  for (size_t k = 0; k < network->nb_hidden; k++) {
     if (fabs(network->hidden[k]) > threshold) {
       hidden_dead = 0;
-      printf("ici");
       break;
     }
   }
-  for (size_t k = 0; k < network->n_outputs; k++) {
+  for (size_t k = 0; k < network->nb_output; k++) {
     if (fabs(network->output[k]) > threshold) {
       output_dead = 0;
-      printf("ici");
-
       break;
     }
   }
@@ -310,16 +312,14 @@ void is_network_dead(const Network* network) {
  * @param network A pointer to the neural network structure to train.
  *
  */
-Trainer* trainer_init(Network* network) {
-  Trainer* trainer = malloc(sizeof(Trainer));
+NetworkTrainer* init_nt(Network* network) {
+  NetworkTrainer* trainer = malloc(sizeof(NetworkTrainer));
   if (trainer == NULL) {
     errx(EXIT_FAILURE, "Error while allocating memory");
   }
-  trainer->grad_hidden =
-      calloc(network->n_hidden, sizeof(*trainer->grad_hidden));
-  trainer->grad_output =
-      calloc(network->n_outputs, sizeof(*trainer->grad_output));
-  if (trainer->grad_hidden == NULL || trainer->grad_output == NULL) {
+  trainer->gradients_hidden = calloc(network->nb_hidden, sizeof(double));
+  trainer->gradients_output = calloc(network->nb_output, sizeof(double));
+  if (trainer->gradients_hidden == NULL || trainer->gradients_output == NULL) {
     errx(EXIT_FAILURE, "Error while allocating memory");
   }
   return trainer;
@@ -337,60 +337,58 @@ Trainer* trainer_init(Network* network) {
  * @param lr Learning rate. For RELU, and similar activation functions,
  * appropriate range is about 10^-6, otherwise between 0.1 and 1.
  */
-void trainer_train(Trainer* trainer,
-                   Network* network,
-                   double* input,
-                   double* target,
-                   double lr) {
-  network_predict(network, input);
-// is_network_dead(network);
-// * NOTE: Parallelization fails when using function pointers
-#pragma acc kernels
+void train_nn(NetworkTrainer* trainer,
+              Network* network,
+              double* input,
+              double* target,
+              double lr) {
+  predict_nn(network, input);
+  // is_network_dead(network);
+  // * NOTE: Parallelization fails when using function pointers
+  // #pragma acc kernels
   {
     // #pragma acc parallel loop
-    for (size_t c = 0; c < network->n_outputs; c++) {
-      // trainer->grad_output[c] = (network->output[c] - target[c]) *
-      // sigmoid_prim(network->output[c]);
+    for (size_t c = 0; c < network->nb_output; c++) {
       if (network->ouput_activation == SOFTMAX)
-        trainer->grad_output[c] = network->output[c] - target[c];
+        trainer->gradients_output[c] = network->output[c] - target[c];
       else
-        trainer->grad_output[c] =
-            (network->output[c] - target[c]) * d_relu
-            /*(*network->d_output_fct)*/ (network->output[c]);
+        trainer->gradients_output[c] =
+            (network->output[c] - target[c]) * /*d_relu*/
+            (*network->d_output_fct)(network->output[c]);
     }
     // #pragma acc parallel loop
-    for (size_t r = 0; r < network->n_hidden; r++) {
+    for (size_t r = 0; r < network->nb_hidden; r++) {
       double sum = 0.0;
       // #pragma acc loop reduction(+ : sum)
-      for (size_t c = 0; c < network->n_outputs; c++) {
-        sum += trainer->grad_output[c] *
-               network->weights_output[r * network->n_outputs + c];
+      for (size_t c = 0; c < network->nb_output; c++) {
+        sum += trainer->gradients_output[c] *
+               network->output_weights[r * network->nb_output + c];
       }
 
-      trainer->grad_hidden[r] =
-          sum * /*(*network->d_hidden_fct)*/ d_relu(network->hidden[r]);
+      trainer->gradients_hidden[r] =
+          sum * (*network->d_hidden_fct) /*d_relu*/ (network->hidden[r]);
     }
     // #pragma acc parallel loop collapse(2)
-    for (size_t r = 0; r < network->n_hidden; r++) {
-      for (size_t c = 0; c < network->n_outputs; c++) {
-        network->weights_output[r * network->n_outputs + c] -=
-            lr * trainer->grad_output[c] * network->hidden[r];
+    for (size_t r = 0; r < network->nb_hidden; r++) {
+      for (size_t c = 0; c < network->nb_output; c++) {
+        network->output_weights[r * network->nb_output + c] -=
+            lr * trainer->gradients_output[c] * network->hidden[r];
       }
     }
     // #pragma acc parallel loop collapse(2)
-    for (size_t r = 0; r < network->n_inputs; r++) {
-      for (size_t c = 0; c < network->n_hidden; c++) {
-        network->weights_hidden[r * network->n_hidden + c] -=
-            lr * trainer->grad_hidden[c] * input[r];
+    for (size_t r = 0; r < network->nb_input; r++) {
+      for (size_t c = 0; c < network->nb_hidden; c++) {
+        network->hidden_weights[r * network->nb_hidden + c] -=
+            lr * trainer->gradients_hidden[c] * input[r];
       }
     }
     // #pragma acc parallel loop
-    for (size_t c = 0; c < network->n_outputs; c++) {
-      network->biases_output[c] -= lr * trainer->grad_output[c];
+    for (size_t c = 0; c < network->nb_output; c++) {
+      network->output_biases[c] -= lr * trainer->gradients_output[c];
     }
     // #pragma acc parallel loop
-    for (size_t c = 0; c < network->n_hidden; c++) {
-      network->biases_hidden[c] -= lr * trainer->grad_hidden[c];
+    for (size_t c = 0; c < network->nb_hidden; c++) {
+      network->hidden_biases[c] -= lr * trainer->gradients_hidden[c];
     }
   }
 }
@@ -400,11 +398,10 @@ void trainer_train(Trainer* trainer,
  *
  * @param trainer A pointer to the trainer structure
  */
-void trainer_free(Trainer* trainer) {
-  free(trainer->grad_hidden);
-  free(trainer->grad_output);
+void free_nt(NetworkTrainer* trainer) {
+  free(trainer->gradients_hidden);
+  free(trainer->gradients_output);
   free(trainer);
-  trainer = NULL;
 }
 
 /**
@@ -412,12 +409,12 @@ void trainer_free(Trainer* trainer) {
  *
  * @param network A pointer to the neural network to print data from
  */
-void print_network(const Network* network) {
+void print_nn(const Network* network) {
   printf("Hidden layer weights:\n");
-  for (size_t i = 0; i < network->n_inputs; i++) {
+  for (size_t i = 0; i < network->nb_input; i++) {
     printf("\tInput neuron %ld: ", i);
-    for (size_t j = 0; j < network->n_hidden; j++) {
-      printf("%9.6f ", network->weights_hidden[network->n_inputs * i + j]);
+    for (size_t j = 0; j < network->nb_hidden; j++) {
+      printf("%9.6f ", network->hidden_weights[network->nb_input * i + j]);
     }
 
     printf("\n");
@@ -426,24 +423,24 @@ void print_network(const Network* network) {
   printf("\n");
 
   printf("Output layer weights:\n");
-  for (size_t i = 0; i < network->n_hidden; i++) {
+  for (size_t i = 0; i < network->nb_hidden; i++) {
     printf("\tHidden neuron %ld: ", i);
 
-    for (size_t j = 0; j < network->n_outputs; j++) {
-      printf("%9.6f ", network->weights_output[i * network->n_outputs + j]);
+    for (size_t j = 0; j < network->nb_output; j++) {
+      printf("%9.6f ", network->output_weights[i * network->nb_output + j]);
     }
 
     printf("\n");
   }
   printf("Biases of hidden layer:\n\t");
-  for (size_t i = 0; i < network->n_hidden; i++) {
-    printf("%9.6f ", network->biases_hidden[i]);
+  for (size_t i = 0; i < network->nb_hidden; i++) {
+    printf("%9.6f ", network->hidden_biases[i]);
   }
   printf("\n");
 
   printf("Biases of output layer:\n\t");
-  for (size_t i = 0; i < network->n_outputs; i++) {
-    printf("%9.6f ", network->biases_output[i]);
+  for (size_t i = 0; i < network->nb_output; i++) {
+    printf("%9.6f ", network->output_biases[i]);
   }
 
   printf("\n");
@@ -481,32 +478,29 @@ void print_network(const Network* network) {
  * @param path The file path where the neural network data will be saved.
  */
 void save_nn_data(const Network* network, const char* path) {
-  // size_t length = snprintf( NULL, 0, "%d;%d;%d",  network->n_inputs,
-  // network->n_hidden, network->n_outputs); char* fst_line = calloc(length+1,
-  // sizeof(char)); snprintf( fst_line, length+1, );
   FILE* fptr;
   fptr = fopen(path, "w");
   if (fptr == NULL)
     errx(EXIT_FAILURE, "Error while opening file to save config");
 
   fprintf(fptr, "%d\n%d\n%ld\n%ld\n%ld\n", network->hidden_activation,
-          network->ouput_activation, network->n_inputs, network->n_hidden,
-          network->n_outputs);
+          network->ouput_activation, network->nb_input, network->nb_hidden,
+          network->nb_output);
 
-  for (size_t i = 0; i < network->n_inputs * network->n_hidden; i++) {
-    fprintf(fptr, "%9.8f;", network->weights_hidden[i]);
+  for (size_t i = 0; i < network->nb_input * network->nb_hidden; i++) {
+    fprintf(fptr, "%9.12f;", network->hidden_weights[i]);
   }
   fprintf(fptr, "\n");
-  for (size_t i = 0; i < network->n_hidden; i++) {
-    fprintf(fptr, "%9.8f;", network->biases_hidden[i]);
+  for (size_t i = 0; i < network->nb_hidden; i++) {
+    fprintf(fptr, "%9.12f;", network->hidden_biases[i]);
   }
   fprintf(fptr, "\n");
-  for (size_t i = 0; i < network->n_hidden * network->n_outputs; i++) {
-    fprintf(fptr, "%9.8f;", network->weights_output[i]);
+  for (size_t i = 0; i < network->nb_hidden * network->nb_output; i++) {
+    fprintf(fptr, "%9.12f;", network->output_weights[i]);
   }
   fprintf(fptr, "\n");
-  for (size_t i = 0; i < network->n_outputs; i++) {
-    fprintf(fptr, "%9.8f;", network->biases_output[i]);
+  for (size_t i = 0; i < network->nb_output; i++) {
+    fprintf(fptr, "%9.12f;", network->output_biases[i]);
   }
   fprintf(fptr, "\n");
   fclose(fptr);
@@ -528,48 +522,48 @@ Network* load_nn_data(const char* path) {
     errx(EXIT_FAILURE, "Error opening file");
   }
 
-  long int act_hidden, act_output, n_input_, n_hidden_, n_output_;
+  long int act_hidden, act_output, input_layer_size_, n_hidden_, n_output_;
   if (fscanf(file, "%ld\n%ld\n%ld\n%ld\n%ld\n", &act_hidden, &act_output,
-             &n_input_, &n_hidden_, &n_output_) != 5) {
+             &input_layer_size_, &n_hidden_, &n_output_) != 5) {
     fclose(file);
     errx(EXIT_FAILURE, "Parsing NN confing failed\n");
   }
-  if (act_hidden < 0 || act_output < 0 || n_hidden_ <= 0 || n_input_ <= 0 ||
-      n_output_ <= 0) {
+  if (act_hidden < 0 || act_output < 0 || n_hidden_ <= 0 ||
+      input_layer_size_ <= 0 || n_output_ <= 0) {
     errx(EXIT_FAILURE, "Inavlid NN confing");
   }
-  size_t n_input = n_input_;
-  size_t n_hidden = n_hidden_;
-  size_t n_output = n_output_;
+  size_t input_layer_size = input_layer_size_;
+  size_t hidden_layer_size = n_hidden_;
+  size_t output_layer_size = n_output_;
 
-  Network* network =
-      network_init(n_input, n_hidden, n_output, act_hidden, act_output);
+  Network* network = init_nn(input_layer_size, hidden_layer_size,
+                                  output_layer_size, act_hidden, act_output);
 
-  for (size_t i = 0; i < n_input * n_hidden; i++) {
-    if (fscanf(file, "%lf;", &network->weights_hidden[i]) != 1) {
+  for (size_t i = 0; i < input_layer_size * hidden_layer_size; i++) {
+    if (fscanf(file, "%lf;", &network->hidden_weights[i]) != 1) {
+      free_nn(network);
       errx(EXIT_FAILURE, "Error while parsing WH at %ld", i);
-      network_free(network);
     }
   }
   fscanf(file, "%*[\n;]");
-  for (size_t i = 0; i < n_hidden; i++) {
-    if (fscanf(file, "%lf;", &network->biases_hidden[i]) != 1) {
+  for (size_t i = 0; i < hidden_layer_size; i++) {
+    if (fscanf(file, "%lf;", &network->hidden_biases[i]) != 1) {
+      free_nn(network);
       errx(EXIT_FAILURE, "Error while parsing NH at %ld", i);
-      network_free(network);
     }
   }
   fscanf(file, "%*[\n;]");
-  for (size_t i = 0; i < n_hidden * n_output; i++) {
-    if (fscanf(file, "%lf;", &network->weights_output[i]) != 1) {
+  for (size_t i = 0; i < hidden_layer_size * output_layer_size; i++) {
+    if (fscanf(file, "%lf;", &network->output_weights[i]) != 1) {
+      free_nn(network);
       errx(EXIT_FAILURE, "Error while parsing WO at %ld", i);
-      network_free(network);
     }
   }
   fscanf(file, "%*[\n;]");
-  for (size_t i = 0; i < n_output; i++) {
-    if (fscanf(file, "%lf;", &network->biases_output[i]) != 1) {
+  for (size_t i = 0; i < output_layer_size; i++) {
+    if (fscanf(file, "%lf;", &network->output_biases[i]) != 1) {
+      free_nn(network);
       errx(EXIT_FAILURE, "Error while parsing WO at %ld", i);
-      network_free(network);
     }
   }
   fscanf(file, "%*[\n;]");
@@ -584,53 +578,48 @@ Network* load_nn_data(const char* path) {
  */
 void print_graphviz(const Network* net) {
   printf("digraph NeuralNetwork {\n");
-  printf("    rankdir=LR;\n");     // Left to right layout
-  printf("    splines=false;\n");  // Left to right layout
+  printf("    rankdir=LR;\n");
+  printf("    splines=false;\n");
 
-  // Input nodes
   printf("    subgraph cluster_input {\n");
   printf("        label=\"Input Layer\";\n");
-  for (size_t i = 0; i < net->n_inputs; i++) {
+  for (size_t i = 0; i < net->nb_input; i++) {
     printf(
         "        input%zu [label=\"Input %zu\", shape=circle, color=blue];\n",
         i, i);
   }
   printf("    }\n");
 
-  // Hidden layer nodes with biases
   printf("    subgraph cluster_hidden {\n");
   printf("        label=\"Hidden Layer\";\n");
-  for (size_t j = 0; j < net->n_hidden; j++) {
+  for (size_t j = 0; j < net->nb_hidden; j++) {
     printf(
         "        hidden%zu [label=\"Hidden %zu\\nb=%.2f\", shape=circle, "
         "color=green];\n",
-        j, j, net->biases_hidden[j]);
+        j, j, net->hidden_biases[j]);
   }
   printf("    }\n");
 
-  // Output layer nodes with biases
   printf("    subgraph cluster_output {\n");
   printf("        label=\"Output Layer\";\n");
-  for (size_t k = 0; k < net->n_outputs; k++) {
+  for (size_t k = 0; k < net->nb_output; k++) {
     printf(
         "        output%zu [label=\"Output %zu\\nb=%.2f\", shape=circle, "
         "color=red];\n",
-        k, k, net->biases_output[k]);
+        k, k, net->output_biases[k]);
   }
   printf("    }\n");
 
-  // Connections from input layer to hidden layer
-  for (size_t i = 0; i < net->n_inputs; i++) {
-    for (size_t j = 0; j < net->n_hidden; j++) {
-      double weight = net->weights_hidden[i * net->n_hidden + j];
+  for (size_t i = 0; i < net->nb_input; i++) {
+    for (size_t j = 0; j < net->nb_hidden; j++) {
+      double weight = net->hidden_weights[i * net->nb_hidden + j];
       printf("    input%zu -> hidden%zu [label=\"%.2f\"];\n", i, j, weight);
     }
   }
 
-  // Connections from hidden layer to output layer
-  for (size_t j = 0; j < net->n_hidden; j++) {
-    for (size_t k = 0; k < net->n_outputs; k++) {
-      double weight = net->weights_output[j * net->n_outputs + k];
+  for (size_t j = 0; j < net->nb_hidden; j++) {
+    for (size_t k = 0; k < net->nb_output; k++) {
+      double weight = net->output_weights[j * net->nb_output + k];
       printf("    hidden%zu -> output%zu [label=\"%.2f\"];\n", j, k, weight);
     }
   }

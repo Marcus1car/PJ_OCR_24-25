@@ -5,8 +5,8 @@
 int main(int argc, char** argv) {
   if (argc != 4) {
     errx(EXIT_FAILURE,
-         "Usage test_image <ocr model data> <image path> <0|1, 1 = bw; 0 = "
-         "gray scale>");
+         "Usage %s <ocr model data> <image path> <0|1, 1 = bw; 0 = "
+         "gray scale>", argv[0]);
   }
 
   Network* ocr = load_nn_data(argv[1]);
@@ -15,7 +15,7 @@ int main(int argc, char** argv) {
 
   SDL_Surface* img = load_image(argv[2]);
   if (img == NULL)
-    errx(EXIT_FAILURE, "Error loading the ocr model");
+    errx(EXIT_FAILURE, "Error loading the image");
   int nb_or_gs = atoi(argv[3]);
   if (nb_or_gs == 0) {
     to_gs(img);
@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
     to_bw(img);
   }
   double* result = predict_from_surface(ocr, img);
-  network_free(ocr);
+  free_nn(ocr);
 
   printf("Predictions: \n");
   for (size_t k = 0; k < OUTPUT_SIZE; k++) {

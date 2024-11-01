@@ -13,7 +13,7 @@ DEPS = neural.c
 OPENMP = -fopenacc -foffload=-lm #-foffload=nvptx-none   -foffload=-lm
 
 POC 			= $(CC) $(CC_FLAGS) $(DEPS) poc.c -o $(BUILD_DIR)/poc $(LIBS)
-TRAINING_IMGS	= $(CC) $(CC_FLAGS)  $(DEPS) training_images.c -o $(BUILD_DIR)/training_images $(LIBS) $(SDL_LIBS)
+TRAINING_IMGS	= $(CC) $(CC_FLAGS)  $(DEPS) ocr.c training_images.c -o $(BUILD_DIR)/training_images $(LIBS) $(SDL_LIBS)
 POC_LOAD		= $(CC) $(CC_FLAGS) $(DEPS) poc_load.c -o $(BUILD_DIR)/poc_load $(LIBS) 
 
 all: poc training_images poc_load

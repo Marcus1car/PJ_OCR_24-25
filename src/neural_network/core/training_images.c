@@ -9,6 +9,7 @@
 
 #include "SDL2/SDL.h"
 #include "neural.h"
+#include "ocr.h"
 
 // Constant macros to define constants
 #define IMG_W 32
@@ -24,64 +25,12 @@ double* get_target(char* filename) {
   return res;
 }
 
-Uint8 calculate_otsu_threshold(SDL_Surface* surface) {
-  int width = surface->w;
-  int height = surface->h;
-
-  Uint32* pixels = (Uint32*)surface->pixels;
-
-  int histogram[256] = {0};
-
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-      Uint32 pixel = pixels[(y * width) + x];
-      Uint8 r, g, b;
-      SDL_GetRGB(pixel, surface->format, &r, &g, &b);
-      // printf("color= %d %d %d\n",r, g, b);
-
-      Uint8 gray = (Uint8)(0.299 * r + 0.587 * g + 0.114 * b);
-      histogram[gray]++;
-    }
-  }
-  int total_pixels = width * height;
-  int sumB = 0;
-  int wB = 0;
-  float max_variance = 0;
-  Uint8 threshold = 0;
-  int sum1 = 0;
-
-  for (int i = 0; i < 256; i++) {
-    sum1 += i * histogram[i];
-  }
-
-  for (int i = 0; i < 256; i++) {
-    wB += histogram[i];
-    if (wB == 0)
-      continue;
-
-    int wF = total_pixels - wB;
-    if (wF == 0)
-      break;
-
-    sumB += i * histogram[i];
-    float mB = (float)sumB / wB;
-    float mF = (float)(sum1 - sumB) / wF;
-
-    // Calculate Between-Class Variance
-    float variance = (float)wB * wF * (mB - mF) * (mB - mF);
-    if (variance > max_variance) {
-      max_variance = variance;
-      threshold = i;
-    }
-  }
-
-  return threshold;
-}
 void swap(double** a, double** b) {
   double* temp = *a;
   *a = *b;
   *b = temp;
 }
+
 void shuffle(double** array1, double** array2, size_t size) {
   srand(time(NULL));
   for (int i = size - 1; i > 0; i--) {
@@ -91,72 +40,6 @@ void shuffle(double** array1, double** array2, size_t size) {
   }
 }
 
-double* load_image_bw(char* path) {
-  SDL_Surface* aaa = IMG_Load(path);
-  SDL_Surface* img = SDL_ConvertSurfaceFormat(aaa, SDL_PIXELFORMAT_RGB888, 0);
-  SDL_FreeSurface(aaa);
-  if (SDL_MUSTLOCK(img)) {
-    SDL_LockSurface(img);
-  }
-  Uint32* pixels = (Uint32*)img->pixels;
-
-  int width = img->w;
-  int height = img->h;
-
-  if (height != IMG_H || width != IMG_W)
-    err(EXIT_FAILURE, "Img with path %s doesn't have the required dimensions.",
-        path);
-
-  // Uint8 threshold = calculate_otsu_threshold(img);
-
-  double* array = calloc(IMG_W * IMG_H, sizeof(double));
-  if (array == NULL) {
-    errx(EXIT_FAILURE, "Error while allocating memory");
-  }
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-      Uint32 pixel = pixels[(y * width) + x];
-      Uint8 r, g, b;
-      SDL_GetRGB(pixel, img->format, &r, &g, &b);
-      double gray2 = (double)(0.299 * r + 0.587 * g + 0.114 * b) / 255;
-
-      /*
-      Uint8 gray = (Uint8)(0.299 * r + 0.587 * g + 0.114 * b);
-      Uint32 bw_pixel = gray > threshold ? SDL_MapRGB(img->format, 255, 255,
-      255) : SDL_MapRGB(img->format, 0, 0, 0);
-
-      pixels[(y * width) + x] = bw_pixel;
-      */
-      SDL_GetRGB(pixel, img->format, &r, &g, &b);
-      // replace g for
-      array[y * IMG_W + x] = ((double)gray2);
-    }
-  }
-
-  if (SDL_MUSTLOCK(img)) {
-    SDL_UnlockSurface(img);
-  }
-  SDL_FreeSurface(img);
-  return array;
-}
-
-/*
-void print_result(Network* network){
-    printf("-- RESULTS --\n\t");
-
-    for(size_t let = 0; let < 26; let ++){
-        printf("%c\t", 'A'+let);
-    }
-    for(size_t letter = 0; letter < 26; letter++ ){
-        network_predict(network, get_letter(letter));
-        printf("%c", letter+'A');
-        for(size_t proba_letter = 0; proba_letter < 26; proba_letter){
-
-        }
-        printf("\n");
-    }
-
-}*/
 void printColor(double value) {
   // Ensure value is between 0.0 and 1.0
   if (value < 0.0)
@@ -228,14 +111,17 @@ void print_current_iter(const Network* net,
 }
 
 int main(int argc, char** argv) {
-  if (argc != 6)
+  if (argc != 8)
     errx(EXIT_FAILURE,
-         "Usage: ./training <hidden_fct> <output_fct> <training_steps> "
-         "<training_dataset_directory> <testing_dataset_directory> TRAILING "
-         "SLASH IS REQUIRED SINON CA MARCHE PAS JAIME PAS LE C");
+         "Usage: %s <hidden_fct> <output_fct> <training_steps> "
+         "<training_dataset_directory> <testing_dataset_directory> <0|1, 0 = "
+         "grayscale, 1 = bw> <lr>", argv[0]);
   ActivationFunction hidden_fct = (ActivationFunction)atoi(argv[1]);
   ActivationFunction output_fct = (ActivationFunction)atoi(argv[2]);
   int training_steps_ = atoi(argv[3]);
+  int is_bw = atoi(argv[6]);
+  double lr = atof(argv[7]);
+
   if (hidden_fct <= SOFTMAX || hidden_fct > TANH)
     errx(EXIT_FAILURE,
          "Hidden activation fct invalid. %d \nSOFTMAX \t= 0\nSIGMOID \t= "
@@ -248,11 +134,12 @@ int main(int argc, char** argv) {
     errx(EXIT_FAILURE, "Training step invalid");
   size_t training_steps = training_steps_;
 
-  printf("hidden_fct = %ld\noutput_fct = %ld\nsteps = %ld\n", hidden_fct,
-         output_fct, training_steps);
-  Network* network = network_init(INPUT_LAYER_SIZE, HIDDEN_LAYER_SIZE,
+  /*printf("hidden_fct = %ld\noutput_fct = %ld\nsteps = %ld\n", hidden_fct,
+         output_fct, training_steps);*/
+  Network* network = init_nn(INPUT_LAYER_SIZE, HIDDEN_LAYER_SIZE,
                                   OUTPUT_LAYER_SIZE, hidden_fct, output_fct);
-  Trainer* trainer = trainer_init(network);
+  NetworkTrainer* trainer = init_nt(network);
+  
   if (trainer == NULL || network == NULL)
     errx(EXIT_FAILURE, "Error while allocating network and trainer");
 
@@ -349,11 +236,19 @@ int main(int argc, char** argv) {
       errx(EXIT_FAILURE, "Error while allocating memory");
     }
     strcpy(path1, argv[4]);
-
+    strcat(path1, "/");
     strcat(path1, training_img_path[idx]);
 
-    training_data[idx] = load_image_bw(path1);
+    SDL_Surface* a = load_image(path1);
+    if (is_bw == 1) {
+      to_bw(a);
+    } else {
+      to_gs(a);
+    }
+
+    training_data[idx] = to_double_array(a);
     targeted_data[idx] = get_target(training_img_path[idx]);
+    SDL_FreeSurface(a);
     free(path1);
     idx++;
   }
@@ -364,8 +259,18 @@ int main(int argc, char** argv) {
       errx(EXIT_FAILURE, "Error while allocating memory");
     }
     strcpy(path2, argv[5]);
+    strcat(path2, "/");
     strcat(path2, testing_img_path[j]);
-    testing_data[j] = load_image_bw(path2);
+
+    SDL_Surface* a = load_image(path2);
+    if (is_bw == 1) {
+      to_bw(a);
+    } else {
+      to_gs(a);
+    }
+
+    testing_data[j] = to_double_array(a);
+    SDL_FreeSurface(a);
     free(path2);
   }
 
@@ -375,18 +280,13 @@ int main(int argc, char** argv) {
     // #pragma acc parallel loop
 
     for (size_t j = 0; j < sample_training_size; j++) {
-      trainer_train(trainer, network, training_data[j], targeted_data[j],
-                    0.0001);
+      train_nn(trainer, network, training_data[j], targeted_data[j], lr);
       if (i == training_steps - 1)
         print_current_iter(network, indexOfMax(targeted_data[j], 26) + 'A', j,
                            training_steps * sample_training_size);
     }
   }
 
-  // print_network(network);
-
-  // free
-  // print_network(network);
   printf("Training done - Testing the results (%ld) (%ld)\n",
          sample_testing_size, sample_training_size);
   printf("Letter\t");
@@ -395,10 +295,10 @@ int main(int argc, char** argv) {
   printf("\n");
 
   for (size_t k = 0; k < sample_testing_size; k++) {
-    network_predict(network, testing_data[k]);
+    predict_nn(network, testing_data[k]);
     printf("%c\t", testing_img_path[k][0]);
-    for (size_t k = 0; k < 26; k++) {
-      printColor(network->output[k]);
+    for (size_t f = 0; f < 26; f++) {
+      printColor(network->output[f]);
       printf("\t");
     }
     if (get_rank(network->output, 26, testing_img_path[k][0] - 'a') == 1)
@@ -427,7 +327,7 @@ int main(int argc, char** argv) {
   free(testing_data);
   free(testing_img_path);
 
-  trainer_free(trainer);
-  network_free(network);
+  free_nt(trainer);
+  free_nn(network);
   return EXIT_SUCCESS;
 }

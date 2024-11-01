@@ -9,7 +9,7 @@
 #define IMG_H 32
 #define IMG_W 32
 
-/*
+/**
  * @brief Returns a pointer to an Neural network struct initialized for OCR
  *
  * @param hidden The size of the hidden layer
@@ -18,10 +18,10 @@ Network* init_ocr(size_t hidden) {
   if (hidden <= 0) {
     errx(EXIT_FAILURE, "Invalid hidden layer size");
   }
-  return network_init(IMG_H * IMG_W, hidden, OUTPUT_SIZE, RELU, SOFTMAX);
+  return init_nn(IMG_H * IMG_W, hidden, OUTPUT_SIZE, RELU, SOFTMAX);
 }
 
-/*
+/**
  * @brief Loads an SDL_Surface from disk
  *
  * @param path The path of the image
@@ -33,12 +33,11 @@ SDL_Surface* load_image(const char* path) {
   return img;
 }
 
-/*
- * @brief Convert a surface to grayscale
+/**
+ * @brief Compute the OTSU threshold of a surface
  *
- * @param surface - An SDL surface to convert to grayscale on place
+ * @param surface - An SDL surface to which OTSU threshold needs to be computed
  */
-
 int calculate_otsu_threshold(SDL_Surface* surface) {
   int width = surface->w;
   int height = surface->h;
@@ -52,8 +51,6 @@ int calculate_otsu_threshold(SDL_Surface* surface) {
       Uint32 pixel = pixels[(y * width) + x];
       Uint8 r, g, b;
       SDL_GetRGB(pixel, surface->format, &r, &g, &b);
-      // printf("color= %d %d %d\n",r, g, b);
-
       Uint8 gray = (Uint8)(0.299 * r + 0.587 * g + 0.114 * b);
       histogram[gray]++;
     }
@@ -82,7 +79,6 @@ int calculate_otsu_threshold(SDL_Surface* surface) {
     double mB = (double)sumB / wB;
     double mF = (double)(sum1 - sumB) / wF;
 
-    // Calculate Between-Class Variance
     double variance = (double)wB * wF * (mB - mF) * (mB - mF);
     if (variance > max_variance) {
       max_variance = variance;
@@ -93,6 +89,12 @@ int calculate_otsu_threshold(SDL_Surface* surface) {
   return threshold;
 }
 
+/**
+ * @brief Converts a surface to binary black and white - in place - using OTSU
+ * thresholding
+ *
+ * @param surface The surface to convert to black and white
+ */
 void to_bw(SDL_Surface* surface) {
   int threshold = calculate_otsu_threshold(surface);
   int width = surface->w;
@@ -119,6 +121,11 @@ void to_bw(SDL_Surface* surface) {
     SDL_UnlockSurface(surface);
 }
 
+/**
+ * @brief Converts a surface to grayscale - in place
+ *
+ * @param surface The surface to convert to grayscale
+ */
 void to_gs(SDL_Surface* surface) {
   int width = surface->w;
   int height = surface->h;
@@ -144,7 +151,31 @@ void to_gs(SDL_Surface* surface) {
     SDL_UnlockSurface(surface);
 }
 
-/*
+/**
+ * @brief Returns a pointer to double list of size IMG_H * IMG_W of pixel light
+ * intensity (i.e. gray scale value of pixel), between 0 (black) and 1 (white)
+ *
+ * @param surface The surface to convert to double list
+ */
+double* to_double_array(SDL_Surface* surface) {
+  double* gs_array = calloc(IMG_H * IMG_W, sizeof(double));
+  int width = surface->w;
+  int height = surface->h;
+  Uint32* pixels = (Uint32*)surface->pixels;
+
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      Uint32 pixel = pixels[(y * width) + x];
+      Uint8 r, g, b;
+      SDL_GetRGB(pixel, surface->format, &r, &g, &b);
+      double gray2 = (double)(0.299 * r + 0.587 * g + 0.114 * b) / 255.;
+      gs_array[y * IMG_W + x] = gray2;
+    }
+  }
+  return gs_array;
+}
+
+/**
  * @brief Returns a pointer to double list of size OUTPUT_SIZE of prediction of
  * a surface against the neural network. Note: size of output layer should be  *
  * of OUTPUT_SIZE
@@ -152,7 +183,6 @@ void to_gs(SDL_Surface* surface) {
  * @param ocr The neural network to predict against
  * @param surface The surface to perform the test
  */
-
 double* predict_from_surface(Network* ocr, SDL_Surface* surface) {
   if (surface->h != IMG_H || surface->w != IMG_W)
     errx(EXIT_FAILURE, "Invalid image size: predict_from_surface()");
@@ -177,8 +207,8 @@ double* predict_from_surface(Network* ocr, SDL_Surface* surface) {
       gs_array[y * IMG_W + x] = ((double)gray2);
     }
   }
-  // NOTE: Assumes NN output size is 26 or more (expect segfault otherwise)
-  network_predict(ocr, gs_array);
+  // NOTE: Assumes NN output size is OUTPUT_SIZE or more (expect segfault otherwise)
+  predict_nn(ocr, gs_array);
   for (size_t k = 0; k < OUTPUT_SIZE; k++) {
     result[k] = ocr->output[k];
   }

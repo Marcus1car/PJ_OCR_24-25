@@ -50,8 +50,8 @@ int get_rank(double arr[], int size, int i) {
 
 int main(int argc, char** argv) {
   if (argc != 3)
-    errx(EXIT_FAILURE,
-         "Usage: test_accuracy <model data> <testing images directory>");
+    errx(EXIT_FAILURE, "Usage: %s <model data> <testing images directory>",
+         argv[0]);
 
   Network* network = load_nn_data(argv[1]);
 
@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
     strcpy(testing_img_path[idx++], entry->d_name);
   }
 
-closedir(testing_directory);
+  closedir(testing_directory);
 
   for (size_t j = 0; j < sample_testing_size; j++) {
     char* path2 = calloc(strlen(argv[2]) + 1 + strlen(testing_img_path[j]) + 1,
@@ -101,17 +101,17 @@ closedir(testing_directory);
     strcat(path2, testing_img_path[j]);
     free(testing_img_path[j]);
     testing_img_path[j] = path2;
-    //free(path2);
+    // free(path2);
   }
-    size_t nbgood = 0;
+  size_t nbgood = 0;
   printf("Letter\t");
   for (char k = 0; k < 26; k++)
     printf("%c\t", k + 'A');
   printf("\n");
 
   for (size_t k = 0; k < sample_testing_size; k++) {
-    SDL_Surface *a = load_image(testing_img_path[k]) ;
-    
+    SDL_Surface* a = load_image(testing_img_path[k]);
+
     double* res = predict_from_surface(network, a);
     SDL_FreeSurface(a);
     printf("%c\t", testing_img_path[k][strlen(argv[2])]);
@@ -119,19 +119,21 @@ closedir(testing_directory);
       printColor(res[k]);
       printf("\t");
     }
-    if (get_rank(res, 26, testing_img_path[k][+ strlen(argv[2])] - 'a' ) == 1){
+    if (get_rank(res, 26, testing_img_path[k][+strlen(argv[2])] - 'a') == 1) {
       printf("✅");
       nbgood++;
-    }
-    else
+    } else
       printf("❌");
 
     printf("\n");
     free(res);
   }
-  printf("Accuracy: %9.3lf%% (%ld/%ld) \n", (double)nbgood/sample_testing_size*100, nbgood, sample_testing_size);
+  printf("Accuracy: %9.3lf%% (%ld/%ld) \n",
+         (double)nbgood / sample_testing_size * 100, nbgood,
+         sample_testing_size);
   network_free(network);
-  for(size_t k = 0; k < sample_testing_size; k++) free(testing_img_path[k]);
+  for (size_t k = 0; k < sample_testing_size; k++)
+    free(testing_img_path[k]);
   free(testing_img_path);
   return EXIT_SUCCESS;
 }

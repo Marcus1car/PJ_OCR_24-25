@@ -18,10 +18,13 @@ typedef enum ActivationFunction {
  *
  */
 typedef struct Network {
-  double* weights_hidden;
-  double* biases_hidden;
-  double* weights_output;
-  double* biases_output;
+  size_t nb_input;
+  size_t nb_hidden;
+  size_t nb_output;
+  double* hidden_weights;
+  double* hidden_biases;
+  double* output_weights;
+  double* output_biases;
   double* hidden;
   double* output;
   ActivationFunction hidden_activation;
@@ -32,33 +35,31 @@ typedef struct Network {
   double (*output_fct)(double);
   double (*d_hidden_fct)(double);
   double (*d_output_fct)(double);
-  size_t n_inputs;
-  size_t n_hidden;
-  size_t n_outputs;
+
 } Network;
 
-Network* network_init(size_t n_inputs,
-                      size_t n_hidden,
-                      size_t n_outputs,
+typedef struct NetworkTrainer {
+  double* gradients_hidden;
+  double* gradients_output;
+} NetworkTrainer;
+
+Network* init_nn(size_t input_layer_size,
+                      size_t hidden_layer_size,
+                      size_t output_layer_size,
                       ActivationFunction activation_hidden,
                       ActivationFunction activation_output);
-void network_free(Network* network);
-void network_predict(Network* network, double* input);
+void free_nn(Network* network);
+void predict_nn(Network* network, double* input);
 
-typedef struct Trainer {
-  double* grad_hidden;
-  double* grad_output;
-} Trainer;
+NetworkTrainer* init_nt(Network* network);
 
-Trainer* trainer_init(Network* network);
-
-void trainer_train(Trainer* trainer,
+void train_nn(NetworkTrainer* trainer,
                    Network* network,
                    double* input,
-                   double* output,
+                   double* target,
                    double lr);
-void trainer_free(Trainer* trainer);
-void print_network(const Network* network);
+void free_nt(NetworkTrainer* trainer);
+void print_nn(const Network* network);
 void save_nn_data(const Network* network, const char* path);
 Network* load_nn_data(const char* path);
 void is_network_dead(const Network* network);
