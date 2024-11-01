@@ -7,7 +7,7 @@
 #include <time.h>
 // #include <omp.h>
 
-#include "neural.h"
+#include "core_network.h"
 
 /*
  * Activation functions and their derivatives (prefixed with d_)

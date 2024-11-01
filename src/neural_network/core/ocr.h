@@ -9,7 +9,7 @@
 #include <err.h>
 #include <stdlib.h>
 
-#include "neural.h"
+#include "core_network.h"
 
 double* predict_from_surface(Network* ocr, SDL_Surface* surface);
 void to_gs(SDL_Surface* surface);

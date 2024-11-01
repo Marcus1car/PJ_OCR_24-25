@@ -3,7 +3,7 @@
 #include <err.h>
 #include <stdlib.h>
 
-#include "neural.h"
+#include "core_network.h"
 
 #define OUTPUT_SIZE 26
 #define IMG_H 32

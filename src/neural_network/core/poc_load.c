@@ -7,7 +7,7 @@
 
 #include <err.h>
 #include <stdio.h>
-#include "neural.h"
+#include "core_network.h"
 
 int main(int argc, char** argv) {
   if (argc != 2) {

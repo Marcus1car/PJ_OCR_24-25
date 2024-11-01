@@ -2,7 +2,7 @@
 #include <err.h>
 #include <stdlib.h>
 
-#include "neural.h"
+#include "core_network.h"
 #include "ocr.h"
 
 void printColor(double value) {

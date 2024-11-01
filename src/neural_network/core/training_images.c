@@ -8,7 +8,7 @@
 #include <time.h>
 
 #include "SDL2/SDL.h"
-#include "neural.h"
+#include "core_network.h"
 #include "ocr.h"
 
 // Constant macros to define constants

@@ -1,5 +1,5 @@
-#ifndef NEURAL_H
-#define NEURAL_H
+#ifndef CORE_NETWORK_H
+#define CORE_NETWORK_H
 
 #include <stdlib.h>
 
@@ -48,21 +48,25 @@ Network* init_nn(size_t input_layer_size,
                       size_t output_layer_size,
                       ActivationFunction activation_hidden,
                       ActivationFunction activation_output);
-void free_nn(Network* network);
-void predict_nn(Network* network, double* input);
 
 NetworkTrainer* init_nt(Network* network);
 
+void predict_nn(Network* network, double* input);
 void train_nn(NetworkTrainer* trainer,
                    Network* network,
                    double* input,
                    double* target,
                    double lr);
-void free_nt(NetworkTrainer* trainer);
+
 void print_nn(const Network* network);
 void save_nn_data(const Network* network, const char* path);
 Network* load_nn_data(const char* path);
+
 void is_network_dead(const Network* network);
 void print_graphviz(const Network* net);
+
+void free_nt(NetworkTrainer* trainer);
+void free_nn(Network* network);
+
 
 #endif

@@ -7,7 +7,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "neural.h"
+#include "core_network.h"
 
 #define ITERS 100000
 
