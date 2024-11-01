@@ -30,5 +30,7 @@ void printColor(double value);
 void shuffle(double** array1, double** array2, size_t size);
 void swap(double** a, double** b);
 double* get_target(const char* filename);
+char** get_filenames_in_dir(const char* path, size_t* size);
+void print_table(Network* network, char*** path, double*** data, size_t size);
 
 #endif

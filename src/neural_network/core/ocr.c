@@ -1,5 +1,6 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
+#include <dirent.h>
 #include <err.h>
 #include <stdlib.h>
 #include <time.h>
@@ -360,4 +361,75 @@ void print_current_iter(const Network* net,
     printf(" \033[31m\033[1mERROR PROBA\033[0m");
   printf("\n");
   printf("-----\n");
+}
+
+/**
+ * @brief List all filenames in a dir (ls replacement), doesnt take in account .
+ * and ..
+ * @param path Path of directory to list
+ * @param size pointer to write the number of files in dir
+ * @return A list of names of files inside the directory
+ */
+char** get_filenames_in_dir(const char* path, size_t* size) {
+  DIR* directory = opendir(path);
+
+  if (directory == NULL)
+    err(EXIT_FAILURE, "Error while opening directory %s", path);
+
+  struct dirent* entry;
+  size_t nb = 0;
+  while ((entry = readdir(directory)) != NULL) {
+    nb++;
+  }
+  nb -= 2;  // removes . and ..
+  closedir(directory);
+
+  char** path_list = calloc(nb, sizeof(char*));
+  if (path_list == NULL) {
+    errx(EXIT_FAILURE, "Error while allocating memory");
+  }
+
+  directory = opendir(path);
+  size_t idx = 0;
+  while ((entry = readdir(directory)) != NULL) {
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+      continue;
+    path_list[idx] = calloc(strlen(entry->d_name) + 1, sizeof(char));
+    if (path_list[idx] == NULL) {
+      errx(EXIT_FAILURE, "Error while allocating memory");
+    }
+    strcpy(path_list[idx], entry->d_name);
+    idx++;
+  }
+  closedir(directory);
+
+  *size = nb;
+  return path_list;
+}
+
+void print_table(Network* network, char*** path, double*** data, size_t size) {
+  size_t nbgood = 0;
+  printf("Letter\t");
+  for (char k = 0; k < 26; k++)
+    printf("%c\t", k + 'A');
+  printf("\n");
+
+  for (size_t k = 0; k < size; k++) {
+    predict_nn(network, (*data)[k]);
+    printf("%c\t", (*path)[k][0]);
+    for (size_t f = 0; f < 26; f++) {
+      printColor(network->output[f]);
+      printf("\t");
+    }
+    if (get_rank(network->output, 26, (*path)[k][0] - 'a') == 1) {
+      printf("✅");
+      nbgood++;
+    } else
+      printf("❌");
+
+    printf("\n");
+  }
+  printf("Accuracy: %9.3lf%% (%ld/%ld) \n",
+         (double)nbgood / size * 100, nbgood,
+         size);
 }

@@ -5,90 +5,53 @@
 #include "core_network.h"
 #include "ocr.h"
 
-//TODO: Add param for gs or nb
+// TODO: Add param for gs or nb
 int main(int argc, char** argv) {
-  if (argc != 3)
-    errx(EXIT_FAILURE, "Usage: %s <model data> <testing images directory>",
+  if (argc != 4)
+    errx(EXIT_FAILURE,
+         "Usage: %s <model data> <testing images directory> <0|1, 1 = bw; 0 = "
+         "gray scale>",
          argv[0]);
 
   Network* network = load_nn_data(argv[1]);
+  int is_bw = atoi(argv[3]);
+  char* testing_directory = argv[2];
 
-  DIR* testing_directory = opendir(argv[2]);
-
-  if (testing_directory == NULL)
-    err(EXIT_FAILURE, "Error while opening testing directory");
-
-  struct dirent* entry;
   size_t sample_testing_size = 0;
+  char** testing_img_path =
+      get_filenames_in_dir(testing_directory, &sample_testing_size);
 
-  while ((entry = readdir(testing_directory)) != NULL) {
-    sample_testing_size++;
-  }
-  sample_testing_size -= 2;
-
-  closedir(testing_directory);
-
-  char** testing_img_path = calloc(sample_testing_size, sizeof(char*));
-
-  if (testing_img_path == NULL) {
+  double** testing_data = calloc(sample_testing_size, sizeof(double*));
+  if (testing_data == NULL) {
     errx(EXIT_FAILURE, "Error while allocating memory");
   }
 
-  testing_directory = opendir(argv[2]);
-  size_t idx = 0;
-
-  while ((entry = readdir(testing_directory)) != NULL) {
-    if (entry->d_name[0] == '.')
-      continue;
-    testing_img_path[idx] = calloc(strlen(entry->d_name) + 1, sizeof(char));
-    if (testing_img_path[idx] == NULL) {
-      errx(EXIT_FAILURE, "Error while allocating memory");
-    }
-    strcpy(testing_img_path[idx++], entry->d_name);
-  }
-
-  closedir(testing_directory);
-
   for (size_t j = 0; j < sample_testing_size; j++) {
-    char* path2 = calloc(strlen(argv[2]) + 1 + strlen(testing_img_path[j]) + 1,
-                         sizeof(char));
+    size_t path_length =
+        strlen(testing_directory) + 1 + strlen(testing_img_path[j]) + 1;
+
+    char* path2 = calloc(path_length, sizeof(char));
     if (path2 == NULL) {
       errx(EXIT_FAILURE, "Error while allocating memory");
     }
-    strcpy(path2, argv[2]);
-    strcat(path2, testing_img_path[j]);
-    free(testing_img_path[j]);
-    testing_img_path[j] = path2;
-    // free(path2);
-  }
-  size_t nbgood = 0;
-  printf("Letter\t");
-  for (char k = 0; k < 26; k++)
-    printf("%c\t", k + 'A');
-  printf("\n");
 
-  for (size_t k = 0; k < sample_testing_size; k++) {
-    SDL_Surface* a = load_image(testing_img_path[k]);
+    snprintf(path2, path_length, "%s/%s", testing_directory,
+             testing_img_path[j]);
 
-    double* res = predict_from_surface(network, a);
-    SDL_FreeSurface(a);
-    printf("%c\t", testing_img_path[k][strlen(argv[2])]);
-    for (size_t j = 0; j < 26; j++) {
-      printColor(res[j]);
-      printf("\t");
+    SDL_Surface* a = load_image(path2);
+    if (is_bw == 1) {
+      to_bw(a);
+    } else {
+      to_gs(a);
     }
-    if (get_rank(res, 26, testing_img_path[k][+strlen(argv[2])] - 'a') == 1) {
-      printf("✅");
-      nbgood++;
-    } else
-      printf("❌");
 
-    printf("\n");
-    free(res);
+    testing_data[j] = to_double_array(a);
+    SDL_FreeSurface(a);
+    free(path2);
   }
-  printf("Accuracy: %9.3lf%% (%ld/%ld) \n",
-         (double)nbgood / sample_testing_size * 100, nbgood,
-         sample_testing_size);
+ 
+  print_table(network, &testing_img_path, &testing_data, sample_testing_size);
+
   free_nn(network);
   for (size_t k = 0; k < sample_testing_size; k++)
     free(testing_img_path[k]);
