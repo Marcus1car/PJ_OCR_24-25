@@ -22,7 +22,7 @@ void apply_gaussian_blur(SDL_Surface* surface) {
   }
 
   SDL_Surface* temp_surface = SDL_ConvertSurface(surface, surface->format, 0);
-  if (!temp_surface) {
+  if (temp_surface == NULL) {
     printf("Failed to create temporary surface: %s\n", SDL_GetError());
     SDL_UnlockSurface(surface);
     return;
@@ -84,7 +84,7 @@ void add_noise(SDL_Surface* surface, int intensity) {
   }
 }
 
-/*
+/**
  * @brief Add artifacts in place to the surface
  *
  * @param surface The surface to artifacts
@@ -298,7 +298,6 @@ void generate_dataset_from_fonts(const char* font_folder,
     SDL_Renderer* renderer =
         SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
-    // Loop through all files in the folder
     while ((ent = readdir(dir)) != NULL) {
       char* ext = strrchr(ent->d_name, '.');
       if (ext && strcmp(ext, ".ttf") == 0) {
@@ -307,7 +306,7 @@ void generate_dataset_from_fonts(const char* font_folder,
                  ent->d_name);
 
         TTF_Font* font = TTF_OpenFont(font_path, 32);
-        if (!font) {
+        if (font == NULL) {
           printf("Failed to load font: %s\n", TTF_GetError());
           continue;
         }
@@ -341,7 +340,7 @@ void generate_dataset_from_fonts(const char* font_folder,
   }
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
   if (argc != 4) {
     errx(EXIT_FAILURE,
          "Usage: %s <font_folder> <output_folder> <noise_intensity 0-100>",
@@ -349,8 +348,8 @@ int main(int argc, char* argv[]) {
   }
   srand(time(NULL));
 
-  const char* font_folder = argv[1];
-  const char* output_folder = argv[2];
+  char* font_folder = argv[1];
+  char* output_folder = argv[2];
   int noise_intensity = atoi(argv[3]);
 
   generate_dataset_from_fonts(font_folder, output_folder, noise_intensity);
