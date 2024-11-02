@@ -5,7 +5,7 @@
 #include <err.h>
 #include <stdlib.h>
 
-#include "ocr.h"
+#include "lib/ocr.h"
 
 int main(int argc, char** argv) {
   // *FIXME: Unknown memory leak on libdbus and llvm in WSL??

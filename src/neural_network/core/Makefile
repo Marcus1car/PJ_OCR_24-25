@@ -5,13 +5,13 @@ NVC_PMGMT = -acc
 
 
 CC = gcc
-CC_FLAGS = -Wall -Wextra -std=c17 -fsanitize=address -g -O2 -pedantic -Wshadow
+CC_FLAGS = -Wall -Wextra -Wpedantic -Wshadow -Wformat -Winit-self -Wuninitialized -Wmissing-include-dirs -Wparentheses -Wunused -Wmaybe-uninitialized -std=c17 -fsanitize=address -g -O2
 LIBS = -lm
 SDL_LIBS = -lSDL2 -lSDL2_image
 BUILD_DIR = ./build
-DEPS = core_network.c
-DEPS_OCR = ocr.c
-OPENMP = -fopenacc -foffload=-lm #-foffload=nvptx-none   -foffload=-lm
+DEPS = ./lib/core_network.c
+DEPS_OCR = ./lib/ocr.c
+MPMGMT = -fopenacc -foffload=-lm #-foffload=nvptx-none   -foffload=-lm
 
 POC 			= $(CC) $(CC_FLAGS) $(DEPS) poc.c -o $(BUILD_DIR)/poc $(LIBS)
 TRAINING_IMGS	= $(CC) $(CC_FLAGS) $(DEPS) $(DEPS_OCR) training_images.c -o $(BUILD_DIR)/training_images $(LIBS) $(SDL_LIBS)
@@ -43,17 +43,17 @@ test_image: build_dir
 	$(TEST_IMAGE)
 
 # poc_para: build_dir
-# 	$(POC) $(OPENMP)
+# 	$(POC) $(MPMGMT)
 
 # poc_load_para: build_dir
-# 	$(POC_LOAD) $(OPENMP)
+# 	$(POC_LOAD) $(MPMGMT)
 
 # training_images_para: build_dir
-# 	$(TRAINING_IMGS) $(OPENMP)
+# 	$(TRAINING_IMGS) $(MPMGMT)
 
 #parallel compilation using openaac and nvc compiler (Nvidia HPC SDK)
 nvc_training_images: build_dir
-	$(CC_NVIDIA) $(NVC_PMGMT) $(CC_FLAGS) neural.c training_images.c -o $(BUILD_DIR)/parallel_training_images $(NVC_LIBS)
+	$(CC_NVIDIA) $(NVC_PMGMT) $(CC_FLAGS) $(DEPS) $(DEPS_OCR) training_images.c -o $(BUILD_DIR)/parallel_training_images $(NVC_LIBS)
 
 .PHONY : clean
 clean:

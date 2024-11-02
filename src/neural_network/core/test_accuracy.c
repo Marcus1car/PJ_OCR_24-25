@@ -2,10 +2,9 @@
 #include <err.h>
 #include <stdlib.h>
 
-#include "core_network.h"
-#include "ocr.h"
+#include "lib/core_network.h"
+#include "lib/ocr.h"
 
-// TODO: Add param for gs or nb
 int main(int argc, char** argv) {
   if (argc != 4)
     errx(EXIT_FAILURE,

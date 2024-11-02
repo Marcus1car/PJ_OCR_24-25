@@ -3,6 +3,20 @@
 
 #include <stdlib.h>
 
+
+/// Activation functions
+
+double relu(double x);
+double d_relu(double x);
+double elu(double x);
+double d_elu(double x);
+double lrelu(double x);
+double d_lrelu(double x);
+double sigmoid(double x);
+double d_sigmoid(double x);
+double tanh_(double x);
+double d_tanh(double x);
+
 typedef enum ActivationFunction {
   SOFTMAX,
   SIGMOID,
@@ -13,10 +27,6 @@ typedef enum ActivationFunction {
 
 } ActivationFunction;
 
-/*
- * Struct definition for neural network
- *
- */
 typedef struct Network {
   size_t nb_input;
   size_t nb_hidden;

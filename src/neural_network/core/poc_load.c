@@ -7,7 +7,7 @@
 
 #include <err.h>
 #include <stdio.h>
-#include "core_network.h"
+#include "lib/core_network.h"
 
 int main(int argc, char** argv) {
   if (argc != 2) {
@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
   printf("Neural network data loaded. Printing results:\n");
 
   double inputs[4][2] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
-  printf("Results: \n\tXOR\tXNOR\tOR\tAND\tNOR\tNAND\n");
+  printf("Results: \n\tOR\tNOR\tAND\tNAND\tXOR\tXNOR\n");
 
   for (size_t i = 0; i < 4; i++) {
     double* input = inputs[i];

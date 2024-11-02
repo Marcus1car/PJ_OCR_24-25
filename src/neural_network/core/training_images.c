@@ -7,9 +7,9 @@
 #include <stdlib.h>
 #include <time.h>
 
-#include "SDL2/SDL.h"
-#include "core_network.h"
-#include "ocr.h"
+#include <SDL2/SDL.h>
+#include "lib/core_network.h"
+#include "lib/ocr.h"
 
 // #define IMG_W 32
 // #define IMG_H 32

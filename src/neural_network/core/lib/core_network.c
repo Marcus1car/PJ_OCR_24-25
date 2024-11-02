@@ -1,6 +1,5 @@
 #include <err.h>
 #include <math.h>
-#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,7 +8,7 @@
 
 #include "core_network.h"
 
-/*
+/**
  * Activation functions and their derivatives (prefixed with d_)
  * NOTE: Softmax is not defined as a function here
  */
@@ -19,15 +18,15 @@ double relu(double x) {
   return x > 0 ? x : 0;
 }
 double d_relu(double x) {
-  return x > 0 ? 1 : 0;
+  return x > 0 ? 1. : 0;
 }
 
 /*Exponential relu with some factor*/
 double elu(double x) {
-  return x > 0 ? x : 0.3 * (exp(x) - 1);
+  return x > 0 ? x : 0.3 * (exp(x) - 1.);
 }
 double d_elu(double x) {
-  return x > 0 ? 1 : 0.3 * (exp(x));
+  return x > 0 ? 1. : 0.3 * (exp(x));
 }
 
 /*Leaky relu*/
@@ -35,15 +34,15 @@ double lrelu(double x) {
   return x > 0 ? x : 0.01 * x;
 }
 double d_lrelu(double x) {
-  return x > 0 ? 1 : 0.01;
+  return x > 0 ? 1. : 0.01;
 }
 
 /*Sigmoid*/
 double sigmoid(double x) {
-  return 1.0 / (1.0 + exp(-x));
+  return 1. / (1. + exp(-x));
 }
 double d_sigmoid(double x) {
-  return x * (1.0 - x);
+  return x * (1. - x);
 }
 
 /*Hyperbolic tangent*/
@@ -52,7 +51,7 @@ double tanh_(double x) {
 }
 double d_tanh(double x) {
   double t = tanh(x);
-  return fma(t, t, -1);  // fma(x,y,z) = x*y+z without losing precision
+  return fma(t, t, -1.);  // fma(x,y,z) = x*y+z without losing precision
 }
 
 /**
@@ -69,19 +68,20 @@ double d_tanh(double x) {
  * @param activation_output Activation function of the output layer (Available
  * functions are in the header associated with this file).
  *
+ * @return pointer to initialized neural network
  */
 Network* init_nn(size_t input_layer_size,
-                      size_t hidden_layer_size,
-                      size_t output_layer_size,
-                      ActivationFunction activation_hidden,
-                      ActivationFunction activation_output) {
-  Network* network = (Network*)malloc(sizeof(Network));
+                 size_t hidden_layer_size,
+                 size_t output_layer_size,
+                 ActivationFunction activation_hidden,
+                 ActivationFunction activation_output) {
+  Network* network = malloc(sizeof(Network));
   if (network == NULL) {
     errx(EXIT_FAILURE, "Memory allocation failed");
   }
 
   if (activation_hidden == SOFTMAX) {
-    errx(EXIT_FAILURE, "Softmax on hidden layer is not possible");
+    errx(EXIT_FAILURE, "Softmax on hidden layer is not supported");
   }
 
   srand(time(NULL));
@@ -110,7 +110,6 @@ Network* init_nn(size_t input_layer_size,
     errx(EXIT_FAILURE, "Memory allocation failed");
   }
 
-  // initialize weights to random values
   for (size_t i = 0; i < input_layer_size * hidden_layer_size; i++) {
     network->hidden_weights[i] = ((double)rand() / (RAND_MAX / 2) - 1.) / 2.;
   }
@@ -183,6 +182,28 @@ Network* init_nn(size_t input_layer_size,
 }
 
 /**
+ * @brief Returns a trainer struct pointer which is adapted for the specified
+ * neural network
+ *
+ *  **NOTE**: The pointer has to be freed after use using free_nt()
+ *
+ * @param network A pointer to the neural network structure to train.
+ * @return pointer to initialized trainer structure
+ */
+NetworkTrainer* init_nt(Network* network) {
+  NetworkTrainer* trainer = malloc(sizeof(NetworkTrainer));
+  if (trainer == NULL) {
+    errx(EXIT_FAILURE, "Error while allocating memory");
+  }
+  trainer->gradients_hidden = calloc(network->nb_hidden, sizeof(double));
+  trainer->gradients_output = calloc(network->nb_output, sizeof(double));
+  if (trainer->gradients_hidden == NULL || trainer->gradients_output == NULL) {
+    errx(EXIT_FAILURE, "Error while allocating memory");
+  }
+  return trainer;
+}
+
+/**
  * @brief Frees a neural network heap-allocated memory
  *
  * @param network A pointer to the neural network structure to free
@@ -199,75 +220,14 @@ void free_nn(Network* network) {
 }
 
 /**
- * @brief Forward propagates (i.e predicts the result of) the input data.
- * Result is stored in the output pointer list of the neural network struct
+ * @brief Frees a trainer heap-allocated memory and invalidates the pointer
  *
- * @param network A pointer to the neural network structure to perform the
- * forward propagation.
- *
- * @param input A double pointer list of size equal to the input layer size
- *
+ * @param trainer A pointer to the trainer structure
  */
-void predict_nn(Network* network, double* input) {
-  // * NOTE: Parallelization fails when using function pointers
-  // #pragma acc kernels
-  {
-    // #pragma acc parallel loop
-    for (size_t c = 0; c < network->nb_hidden; c++) {
-      double sum = 0;
-      // #pragma acc loop reduction(+ : sum)
-      for (size_t r = 0; r < network->nb_input; r++) {
-        sum += input[r] * network->hidden_weights[r * network->nb_hidden + c];
-      }
-      network->hidden[c] =
-          /*relu*/ (*network->hidden_fct)(sum + network->hidden_biases[c]);
-    }
-
-    if (network->ouput_activation == SOFTMAX) {
-      // #pragma acc parallel loop
-      for (size_t c = 0; c < network->nb_output; c++) {
-        double sum = 0.0;
-        // #pragma acc loop reduction(+ : sum)
-        for (size_t r = 0; r < network->nb_hidden; r++) {
-          sum += network->hidden[r] *
-                 network->output_weights[r * network->nb_output + c];
-        }
-        network->output[c] = sum + network->output_biases[c];
-      }
-
-      double max_output = network->output[0];
-      for (size_t i = 0; i < network->nb_output; i++) {
-        if (network->output[i] > max_output) {
-          max_output = network->output[i];
-        }
-      }
-
-      double sum_exp = 0;
-      // #pragma acc parallel loop reduction(+ : sum_exp)
-      for (size_t i = 0; i < network->nb_output; i++) {
-        network->output[i] = exp(network->output[i] - max_output);
-        sum_exp += network->output[i];
-      }
-
-      // #pragma acc parallel loop
-      for (size_t i = 0; i < network->nb_output; i++) {
-        network->output[i] /= sum_exp;
-      }
-    } else {
-      // #pragma acc parallel loop
-      for (size_t c = 0; c < network->nb_output; c++) {
-        double sum = 0;
-        // #pragma acc loop reduction(+ : sum)
-        for (size_t r = 0; r < network->nb_hidden; r++) {
-          sum += network->hidden[r] *
-                 network->output_weights[r * network->nb_output + c];
-        }
-
-        network->output[c] =
-            /*relu*/ (*network->output_fct)(sum + network->output_biases[c]);
-      }
-    }
-  }
+void free_nt(NetworkTrainer* trainer) {
+  free(trainer->gradients_hidden);
+  free(trainer->gradients_output);
+  free(trainer);
 }
 
 /**
@@ -304,25 +264,75 @@ void is_network_dead(const Network* network) {
 }
 
 /**
- * @brief Returns a trainer struct pointer which is adapted for the specified
- * neural network
+ * @brief Forward propagates (i.e predicts the result of) the input data.
+ * Result is stored in the output pointer list of the neural network struct
  *
- *  **NOTE**: The trainer pointer has to be freed after use
+ * @param network A pointer to the neural network structure to perform the
+ * forward propagation.
  *
- * @param network A pointer to the neural network structure to train.
+ * @param input A double pointer list of size equal to the input layer size
  *
  */
-NetworkTrainer* init_nt(Network* network) {
-  NetworkTrainer* trainer = malloc(sizeof(NetworkTrainer));
-  if (trainer == NULL) {
-    errx(EXIT_FAILURE, "Error while allocating memory");
+void predict_nn(Network* network, double* input) {
+  // * NOTE: Parallelization fails when using function pointers
+  // #pragma acc kernels
+  {
+    // #pragma acc parallel loop
+    for (size_t i = 0; i < network->nb_hidden; i++) {
+      double total = 0;
+      // #pragma acc loop reduction(+ : total)
+      for (size_t j = 0; j < network->nb_input; j++) {
+        total += input[j] * network->hidden_weights[j * network->nb_hidden + i];
+      }
+      network->hidden[i] =
+          /*relu*/ (*network->hidden_fct)(total + network->hidden_biases[i]);
+    }
+
+    if (network->ouput_activation == SOFTMAX) {
+      // #pragma acc parallel loop
+      for (size_t i = 0; i < network->nb_output; i++) {
+        double total = 0.0;
+        // #pragma acc loop reduction(+ : total)
+        for (size_t j = 0; j < network->nb_hidden; j++) {
+          total += network->hidden[j] *
+                   network->output_weights[j * network->nb_output + i];
+        }
+        network->output[i] = total + network->output_biases[i];
+      }
+
+      double max_output = network->output[0];
+      for (size_t i = 0; i < network->nb_output; i++) {
+        if (network->output[i] > max_output) {
+          max_output = network->output[i];
+        }
+      }
+
+      double total = 0;
+      // #pragma acc parallel loop reduction(+ : total)
+      for (size_t i = 0; i < network->nb_output; i++) {
+        network->output[i] = exp(network->output[i] - max_output);
+        total += network->output[i];
+      }
+
+      // #pragma acc parallel loop
+      for (size_t i = 0; i < network->nb_output; i++) {
+        network->output[i] /= total;
+      }
+    } else {
+      // #pragma acc parallel loop
+      for (size_t i = 0; i < network->nb_output; i++) {
+        double total = 0;
+        // #pragma acc loop reduction(+ : total)
+        for (size_t j = 0; j < network->nb_hidden; j++) {
+          total += network->hidden[j] *
+                   network->output_weights[j * network->nb_output + i];
+        }
+
+        network->output[i] =
+            /*relu*/ (*network->output_fct)(total + network->output_biases[i]);
+      }
+    }
   }
-  trainer->gradients_hidden = calloc(network->nb_hidden, sizeof(double));
-  trainer->gradients_output = calloc(network->nb_output, sizeof(double));
-  if (trainer->gradients_hidden == NULL || trainer->gradients_output == NULL) {
-    errx(EXIT_FAILURE, "Error while allocating memory");
-  }
-  return trainer;
 }
 
 /**
@@ -335,7 +345,7 @@ NetworkTrainer* init_nt(Network* network) {
  * @param target A pointer used as a double list of size equal to the the size
  * of output layer. It represents the expected output of the given input
  * @param lr Learning rate. For RELU, and similar activation functions,
- * appropriate range is about 10^-6, otherwise between 0.1 and 1.
+ * appropriate range is about 10^-4, otherwise between 0.1 and 1.
  */
 void train_nn(NetworkTrainer* trainer,
               Network* network,
@@ -391,17 +401,6 @@ void train_nn(NetworkTrainer* trainer,
       network->hidden_biases[c] -= lr * trainer->gradients_hidden[c];
     }
   }
-}
-
-/**
- * @brief Frees a trainer heap-allocated memory and invalidates the pointer
- *
- * @param trainer A pointer to the trainer structure
- */
-void free_nt(NetworkTrainer* trainer) {
-  free(trainer->gradients_hidden);
-  free(trainer->gradients_output);
-  free(trainer);
 }
 
 /**
@@ -515,6 +514,7 @@ void save_nn_data(const Network* network, const char* path) {
  * @param network A pointer to the neural network structure which has been
  * previously initialized
  * @param path The file path where the neural network data has been saved.
+ * @return pointer to loaded neural network struct
  */
 Network* load_nn_data(const char* path) {
   FILE* file = fopen(path, "r");
@@ -537,7 +537,7 @@ Network* load_nn_data(const char* path) {
   size_t output_layer_size = n_output_;
 
   Network* network = init_nn(input_layer_size, hidden_layer_size,
-                                  output_layer_size, act_hidden, act_output);
+                             output_layer_size, act_hidden, act_output);
 
   for (size_t i = 0; i < input_layer_size * hidden_layer_size; i++) {
     if (fscanf(file, "%lf;", &network->hidden_weights[i]) != 1) {
@@ -549,7 +549,7 @@ Network* load_nn_data(const char* path) {
   for (size_t i = 0; i < hidden_layer_size; i++) {
     if (fscanf(file, "%lf;", &network->hidden_biases[i]) != 1) {
       free_nn(network);
-      errx(EXIT_FAILURE, "Error while parsing NH at %ld", i);
+      errx(EXIT_FAILURE, "Error while parsing BH at %ld", i);
     }
   }
   fscanf(file, "%*[\n;]");
@@ -563,7 +563,7 @@ Network* load_nn_data(const char* path) {
   for (size_t i = 0; i < output_layer_size; i++) {
     if (fscanf(file, "%lf;", &network->output_biases[i]) != 1) {
       free_nn(network);
-      errx(EXIT_FAILURE, "Error while parsing WO at %ld", i);
+      errx(EXIT_FAILURE, "Error while parsing BO at %ld", i);
     }
   }
   fscanf(file, "%*[\n;]");
@@ -585,7 +585,7 @@ void print_graphviz(const Network* net) {
   printf("        label=\"Input Layer\";\n");
   for (size_t i = 0; i < net->nb_input; i++) {
     printf(
-        "        input%zu [label=\"Input %zu\", shape=circle, color=blue];\n",
+        "        input%ld [label=\"Input %ld\", shape=circle, color=blue];\n",
         i, i);
   }
   printf("    }\n");
@@ -594,7 +594,7 @@ void print_graphviz(const Network* net) {
   printf("        label=\"Hidden Layer\";\n");
   for (size_t j = 0; j < net->nb_hidden; j++) {
     printf(
-        "        hidden%zu [label=\"Hidden %zu\\nb=%.2f\", shape=circle, "
+        "        hidden%ld [label=\"Hidden %ld\\nb=%.2f\", shape=circle, "
         "color=green];\n",
         j, j, net->hidden_biases[j]);
   }
@@ -604,7 +604,7 @@ void print_graphviz(const Network* net) {
   printf("        label=\"Output Layer\";\n");
   for (size_t k = 0; k < net->nb_output; k++) {
     printf(
-        "        output%zu [label=\"Output %zu\\nb=%.2f\", shape=circle, "
+        "        output%ld [label=\"Output %ld\\nb=%.2f\", shape=circle, "
         "color=red];\n",
         k, k, net->output_biases[k]);
   }
@@ -613,14 +613,14 @@ void print_graphviz(const Network* net) {
   for (size_t i = 0; i < net->nb_input; i++) {
     for (size_t j = 0; j < net->nb_hidden; j++) {
       double weight = net->hidden_weights[i * net->nb_hidden + j];
-      printf("    input%zu -> hidden%zu [label=\"%.2f\"];\n", i, j, weight);
+      printf("    input%ld -> hidden%ld [label=\"%.2f\"];\n", i, j, weight);
     }
   }
 
   for (size_t j = 0; j < net->nb_hidden; j++) {
     for (size_t k = 0; k < net->nb_output; k++) {
       double weight = net->output_weights[j * net->nb_output + k];
-      printf("    hidden%zu -> output%zu [label=\"%.2f\"];\n", j, k, weight);
+      printf("    hidden%ld -> output%ld [label=\"%.2f\"];\n", j, k, weight);
     }
   }
 
