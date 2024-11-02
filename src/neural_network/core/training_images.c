@@ -23,7 +23,15 @@ int main(int argc, char** argv) {
     errx(EXIT_FAILURE,
          "Usage: %s <hidden_fct> <output_fct> <training_steps> "
          "<training_dataset_directory> <testing_dataset_directory> <0|1, 0 = "
-         "grayscale, 1 = bw> <lr>",
+         "grayscale, 1 = bw> <lr>"
+         "For activation functions:\n"
+         "0 = SOFTMAX (not allowed here)\n"
+         "1 = SIGMOID\n"
+         "2 = RELU\n"
+         "3 = ELU\n"
+         "4 = LRELU\n"
+         "5 = TANH\n"
+         ,
          argv[0]);
 
   ActivationFunction hidden_fct = (ActivationFunction)atoi(argv[1]);
@@ -34,12 +42,24 @@ int main(int argc, char** argv) {
 
   if (hidden_fct <= SOFTMAX || hidden_fct > TANH)
     errx(EXIT_FAILURE,
-         "Hidden activation fct invalid. %d \nSOFTMAX \t= 0\nSIGMOID \t= "
-         "1\n\n\n",
-         hidden_fct);
+         "Hidden activation fct invalid."
+         "Valid values:\n"
+         "0 = SOFTMAX (not allowed here)\n"
+         "1 = SIGMOID\n"
+         "2 = RELU\n"
+         "3 = ELU\n"
+         "4 = LRELU\n"
+         "5 = TANH\n");
   if (output_fct < SOFTMAX || output_fct > TANH)
     errx(EXIT_FAILURE,
-         "Output activation fct invalid. \nSOFTMAX \t= 0\nSIGMOID \t= 1\n\n\n");
+         "Output activation fct invalid."
+         "Valid values:\n"
+         "0 = SOFTMAX\n"
+         "1 = SIGMOID\n"
+         "2 = RELU\n"
+         "3 = ELU\n"
+         "4 = LRELU\n"
+         "5 = TANH\n");
   if (training_steps_ <= 0)
     errx(EXIT_FAILURE, "Training step invalid");
 
@@ -47,8 +67,8 @@ int main(int argc, char** argv) {
   char* training_directory = argv[4];
   char* testing_directory = argv[5];
 
-  /*printf("hidden_fct = %ld\noutput_fct = %ld\nsteps = %ld\n", hidden_fct,
-         output_fct, training_steps);*/
+  /*printf("hidden_fct = %ld\noutput_fct = %ld\nsteps = %ld\n",
+     hidden_fct, output_fct, training_steps);*/
   Network* network = init_nn(INPUT_LAYER_SIZE, HIDDEN_LAYER_SIZE,
                              OUTPUT_LAYER_SIZE, hidden_fct, output_fct);
   NetworkTrainer* trainer = init_nt(network);

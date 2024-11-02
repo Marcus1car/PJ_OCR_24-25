@@ -4,10 +4,10 @@
  * logic gates (XOR, XNOR, OR, NOR, AND, NAND)
  */
 
+#include <err.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <err.h>
 #include "lib/core_network.h"
 
 /**
@@ -29,14 +29,29 @@ void print_res(double inputs[4][2], Network* network) {
 }
 
 int main(int argc, char** argv) {
-  if (argc != 3) {
-    errx(EXIT_FAILURE, "Usage %s <training steps> <learning rate>", argv[0]);
+  if (argc != 5) {
+    errx(EXIT_FAILURE,
+         "Usage %s <training steps> <learning rate> <hidden activation "
+         "funtion> <output activation function>. For activation functions:\n"
+         "0 = SOFTMAX (not allowed here)\n"
+         "1 = SIGMOID\n"
+         "2 = RELU\n"
+         "3 = ELU\n"
+         "4 = LRELU\n"
+         "5 = TANH\n",
+         argv[0]);
   }
   long steps = atol(argv[1]);
   double lr = atof(argv[2]);
+  int h_act_fct = atoi(argv[3]);
+  int o_act_fct = atoi(argv[3]);
   if (lr < 0 || steps < 0)
     errx(EXIT_FAILURE, "Wrong learning rate or training steps");
-  Network* network = init_nn(2, 2, 6, SIGMOID, SIGMOID);
+  if (h_act_fct <= SOFTMAX || h_act_fct > TANH)
+    errx(EXIT_FAILURE, "Wrong hidden activation function");
+  if (o_act_fct <= SOFTMAX || o_act_fct > TANH)
+    errx(EXIT_FAILURE, "Wrong output activation function");
+  Network* network = init_nn(2, 2, 6, h_act_fct, o_act_fct);
   NetworkTrainer* trainer = init_nt(network);
   double inputs[4][2] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
   double outputs[4][6] = {// OR NOR AND NAND XOR XNOR
@@ -44,6 +59,7 @@ int main(int argc, char** argv) {
                           {1, 0, 0, 1, 1, 0},
                           {1, 0, 0, 1, 1, 0},
                           {1, 0, 1, 0, 0, 1}};
+  print_nn(network);
   printf("[I]: Results after initializing NN with random values\n");
   print_res(inputs, network);
 
