@@ -195,9 +195,9 @@ NetworkTrainer* init_nt(Network* network) {
   if (trainer == NULL) {
     errx(EXIT_FAILURE, "Error while allocating memory");
   }
-  trainer->gradients_hidden = calloc(network->nb_hidden, sizeof(double));
-  trainer->gradients_output = calloc(network->nb_output, sizeof(double));
-  if (trainer->gradients_hidden == NULL || trainer->gradients_output == NULL) {
+  trainer->gradients_errors_hidden = calloc(network->nb_hidden, sizeof(double));
+  trainer->gradients_errors_output = calloc(network->nb_output, sizeof(double));
+  if (trainer->gradients_errors_hidden == NULL || trainer->gradients_errors_output == NULL) {
     errx(EXIT_FAILURE, "Error while allocating memory");
   }
   return trainer;
@@ -225,8 +225,8 @@ void free_nn(Network* network) {
  * @param trainer A pointer to the trainer structure
  */
 void free_nt(NetworkTrainer* trainer) {
-  free(trainer->gradients_hidden);
-  free(trainer->gradients_output);
+  free(trainer->gradients_errors_hidden);
+  free(trainer->gradients_errors_output);
   free(trainer);
 }
 
@@ -360,9 +360,9 @@ void train_nn(NetworkTrainer* trainer,
     // #pragma acc parallel loop
     for (size_t c = 0; c < network->nb_output; c++) {
       if (network->ouput_activation == SOFTMAX)
-        trainer->gradients_output[c] = network->output[c] - target[c];
+        trainer->gradients_errors_output[c] = network->output[c] - target[c];
       else
-        trainer->gradients_output[c] =
+        trainer->gradients_errors_output[c] =
             (network->output[c] - target[c]) * /*d_relu*/
             (*network->d_output_fct)(network->output[c]);
     }
@@ -371,34 +371,34 @@ void train_nn(NetworkTrainer* trainer,
       double sum = 0.0;
       // #pragma acc loop reduction(+ : sum)
       for (size_t c = 0; c < network->nb_output; c++) {
-        sum += trainer->gradients_output[c] *
+        sum += trainer->gradients_errors_output[c] *
                network->output_weights[r * network->nb_output + c];
       }
 
-      trainer->gradients_hidden[r] =
+      trainer->gradients_errors_hidden[r] =
           sum * (*network->d_hidden_fct) /*d_relu*/ (network->hidden[r]);
     }
     // #pragma acc parallel loop collapse(2)
     for (size_t r = 0; r < network->nb_hidden; r++) {
       for (size_t c = 0; c < network->nb_output; c++) {
         network->output_weights[r * network->nb_output + c] -=
-            lr * trainer->gradients_output[c] * network->hidden[r];
+            lr * trainer->gradients_errors_output[c] * network->hidden[r];
       }
     }
     // #pragma acc parallel loop collapse(2)
     for (size_t r = 0; r < network->nb_input; r++) {
       for (size_t c = 0; c < network->nb_hidden; c++) {
         network->hidden_weights[r * network->nb_hidden + c] -=
-            lr * trainer->gradients_hidden[c] * input[r];
+            lr * trainer->gradients_errors_hidden[c] * input[r];
       }
     }
     // #pragma acc parallel loop
     for (size_t c = 0; c < network->nb_output; c++) {
-      network->output_biases[c] -= lr * trainer->gradients_output[c];
+      network->output_biases[c] -= lr * trainer->gradients_errors_output[c];
     }
     // #pragma acc parallel loop
     for (size_t c = 0; c < network->nb_hidden; c++) {
-      network->hidden_biases[c] -= lr * trainer->gradients_hidden[c];
+      network->hidden_biases[c] -= lr * trainer->gradients_errors_hidden[c];
     }
   }
 }

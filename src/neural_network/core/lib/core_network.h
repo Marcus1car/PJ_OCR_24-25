@@ -49,8 +49,8 @@ typedef struct Network {
 } Network;
 
 typedef struct NetworkTrainer {
-  double* gradients_hidden;
-  double* gradients_output;
+  double* gradients_errors_hidden;
+  double* gradients_errors_output;
 } NetworkTrainer;
 
 Network* init_nn(size_t input_layer_size,

@@ -1,4 +1,5 @@
-PWD = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+#PWD = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+PWD = .
 CC_NVIDIA = nvc
 NVC_FLAGS = -fast -gpu:mem:managed -Minfo=all
 NVC_LIBS = -lm -lSDL2 -lSDL2_image
@@ -9,7 +10,7 @@ CC = gcc
 CC_FLAGS = -Wall -Wextra -Wpedantic -Wshadow -Wformat -Winit-self -Wuninitialized -Wmissing-include-dirs -Wparentheses -Wunused -Wmaybe-uninitialized -std=c17 -fsanitize=address -g -O2
 LIBS = -lm
 SDL_LIBS = -lSDL2 -lSDL2_image
-BUILD_DIR = ./build/neural_network
+BUILD_DIR = ./build/
 DEPS = $(PWD)/lib/core_network.c
 DEPS_OCR = $(PWD)/lib/ocr.c
 MPMGMT = -fopenacc -foffload=-lm #-foffload=nvptx-none   -foffload=-lm
