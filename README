@@ -1,5 +1,10 @@
-# PJ_OCR_24-25
+# OCR Projet
 OCR Project Epita 24-25
+
+# Usage
+
+`make [all]` builds all the executables
+`make clean` cleans the builds
 
 # Coding style
 
