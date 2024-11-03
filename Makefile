@@ -1,14 +1,21 @@
-# END
 
-all: make_build preprocessing
+all: preprocessing neural_network dataset_gen solver
 
-preprocessing: make_build
+preprocessing:
 	$(MAKE) -C src/preprocessing preprocess man_rota
 
-make_build:
-	mkdir -p ./build
+neural_network:
+	$(MAKE) -C src/neural_network/core all
+
+dataset_gen:
+	$(MAKE) -C src/neural_network/training_dataset all
+
+solver:
+	$(MAKE) -C src/solver all
 
 .PHONY: clean preprocessing
 clean:
-	rm -rf ./build
 	$(MAKE) -C src/preprocessing clean
+	$(MAKE) -C src/neural_network/core clean
+	$(MAKE) -C src/neural_network/training_dataset clean 
+	$(MAKE) -C src/solver clean
