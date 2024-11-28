@@ -122,7 +122,10 @@ void Grayscalefunct(SDL_Surface *surface)
 //Binarize function 
 //----------------------------------------------------------------
 
-Uint8 varlight(SDL_Surface *surface) 
+
+
+
+Uint8 meanLight(SDL_Surface *surface) 
 {
     Uint32 *pixels = (Uint32 *)surface->pixels;
     int totpix = surface->w * surface->h;
@@ -137,6 +140,71 @@ Uint8 varlight(SDL_Surface *surface)
     return (Uint8)(totli/totpix);
 }
 
+
+Uint8 medianLight(SDL_Surface *surface) {
+    Uint32 *pixels = (Uint32 *)surface->pixels;
+    int totpix = surface->w * surface->h;
+    
+    unsigned long pixelval[256] =  {0};
+    unsigned long median =  0;
+    unsigned long c = 0;
+
+    // First pass
+    Uint32 *pixelPtr = pixels;
+    Uint32 *pixelEnd = pixels + totpix;
+    while (pixelPtr< pixelEnd) 
+    {
+        Uint8 r, g, b;
+        SDL_GetRGB(*pixelPtr++, surface->format, &r, &g, &b);
+        pixelval[r] = 1;
+    }
+
+    // Second pass
+    for (int intensity = 0; intensity < 256; intensity++) 
+    {
+        if (pixelval[intensity]) 
+        {
+            median += intensity;
+            c++;
+        }
+    }
+
+    return (Uint8)(median/c);
+}
+
+
+/* TOO THICK , OVERLAPS
+
+Uint8 calculateMedianLight(SDL_Surface *surface)
+{
+    histogram
+}
+
+
+*/
+void binarize(SDL_Surface *surface) 
+{
+   
+    Uint8 meanCap = meanLight(surface);
+    Uint8 medianCap = medianLight(surface);
+    // Use the average mean & median 
+    Uint8 cap = (meanCap + medianCap) /  2;
+    Uint32 *pixels = (Uint32 *)surface->pixels;
+    int totpix = surface->w * surface->h;
+    
+    for (int i = 0; i < totpix; i++)
+    {
+        Uint8 r, g, b;
+        SDL_GetRGB(pixels[i], surface->format, &r, &g, &b);
+        
+        // bitwise operation
+        Uint8 bw = -(r >= cap);  // 0x00 or 0xFF
+        pixels[i] = SDL_MapRGB(surface->format, bw, bw, bw);
+    }
+}
+
+
+/*
 void binarize(SDL_Surface *surface) 
 {
     Uint8 cap = varlight(surface);
@@ -152,6 +220,12 @@ void binarize(SDL_Surface *surface)
         pixels[i] = SDL_MapRGB(surface->format, bw, bw, bw);
     }
 }
+*/
+
+
+
+
+
 
 // ----------------------------------------------------------------
 //Contrast function 
@@ -166,7 +240,7 @@ void more_contrast(SDL_Surface *surface, double noiseLevel)
     int wid = surface->w;
     int hei = surface->h;
     
-    // Find min and max
+    // Find min & max
     for (int i = 0; i < wid * hei; i++) 
     {
         Uint8 r, g, b;
@@ -180,7 +254,7 @@ void more_contrast(SDL_Surface *surface, double noiseLevel)
     Uint8 minScaled = (Uint8)(minGray * contrastStrength);
     Uint8 maxScaled = (Uint8)(maxGray * contrastStrength);
     
-    // Create lookup table for faster transformation
+    // Create lookup table 
     Uint8 contrastLUT[256];
     for (int i = 0; i < 256; i++) 
     {
@@ -189,8 +263,9 @@ void more_contrast(SDL_Surface *surface, double noiseLevel)
             (maxGray - minGray) + minScaled);
     }
     
-    // Apply transformation using lookup table
-    for (int i = 0; i < wid * hei; i++) {
+    // Apply using lookup table
+    for (int i = 0; i < wid * hei; i++) 
+    {
         Uint8 r, g, b;
         SDL_GetRGB(pixels[i], surface->format, &r, &g, &b);
         
@@ -214,7 +289,7 @@ void FinalFunc(SDL_Surface *surface)
 {
     double noiseLevel = noiselevel_weighted(surface);
     Grayscalefunct(surface);
-    if (noiseLevel < 50) 
+    if (noiseLevel < 35) 
     {
         Filterfunc(surface);
         printf("Flter applied.\n");
