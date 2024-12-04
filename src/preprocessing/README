@@ -1,0 +1,35 @@
+preprocess.c 
+    Takes one image (pnj,jpg)  ,returns processed bmp image 
+        Process are :
+            Import 
+            Denoise
+            Grayscale
+            Binarization
+            Contrast
+    
+    ex : 
+        make (makes the preprocess executable)
+        ./preprocess chosen_image.pnj output_image_name.bmp
+
+
+man_rota.c 
+    Takes one image (pnj,jpg) and a given angle  ,returns rotated bmp image 
+        Process are :
+           Rotation
+    
+    ex : 
+        make man_rota (makes the man_rota executable)
+        ./man_rota chosen_image.pnj angle output_image_name.bmp
+
+
+auto_rota.c 
+    Takes one image (pnj,jpg),returns rotated bmp image 
+        Process are :
+            Preprocessing (Import , Denoise , ...)
+            Estimation of angle 
+            Rotation
+
+    
+    ex : 
+        make auto_rota (makes the auto_rota executable)
+        ./auto_rota chosen_image.pnj output_image_name.bmp

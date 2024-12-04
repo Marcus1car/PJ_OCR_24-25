@@ -3,25 +3,10 @@
 #include <SDL2/SDL.h>        
 #include <SDL2/SDL_image.h>   
 #include <math.h>    
-#define M_PI 3.14159265358979323846    //Just in case      
- 
-SDL_Surface* loadImage(const char* given_path) 
-{
-    if (!given_path) 
-    {
-        fprintf(stderr, "Error NULL path provided\n");
-        return NULL;
-    }
+#include "preprocess.h"
 
-    SDL_Surface* image = IMG_Load(given_path);
-    
-    if (!image) 
-    {
-    fprintf(stderr, "Error loading image '%s': %s\n",given_path, IMG_GetError()); 
-    return NULL;
-    }
-    return image;
-}
+#define M_PI 3.14159265358979323846    //Just in case    
+
 SDL_Surface* manualrota(SDL_Surface *image, double angle) {
     double radians = angle * 3.141593 / 180.0;
 
@@ -71,95 +56,131 @@ SDL_Surface* manualrota(SDL_Surface *image, double angle) {
 }
 
 
-int isWhite(Uint8 r, Uint8 g, Uint8 b) // Adjust cap
-{ return (r > 200 && g > 200 && b > 200);}
 
-double estimateRotationAngle(SDL_Surface *surface) 
+
+double Houghangle(SDL_Surface *surface) 
 {
     int width = surface->w;
     int height = surface->h;
 
-    int maxTheta = 180; // Sampling angles from 0 to 179 degrees
-    int* accumulator = calloc(maxTheta, sizeof(int)); // Hough-like accumulator
-    if (!accumulator) 
-    {fprintf(stderr, "Failed to allocate memory for accumulator.\n");return 0.0;}
+
+    int diag = (int)sqrt(width * width + height * height); // Diagonal length
+    int numAngles = 180; 
+
+    // Create angle accumulator
+    int *angleVotes = calloc(numAngles, sizeof(int));
+    if (!angleVotes) 
+    {
+        fprintf(stderr, "Failed to allocate memory for angle votes.\n");
+        return 0.0;
+    }
+
+    Uint32 *pixels = (Uint32 *)surface->pixels;
 
 
-    Uint8* pixels = (Uint8*)surface->pixels;
-        for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
+
+
+    // Iterate through each pixel to find "white" pixels (edges)
+    for (int y = 0; y < height; y++) 
+    {
+        for (int x = 0; x < width; x++) 
+        {
             Uint8 r, g, b;
             SDL_GetRGB(pixels[y * width + x], surface->format, &r, &g, &b);
-            if (isWhite(r, g, b)) {
-                // Accumulate votes for different angles based on edge orientation
-                for (int theta = 0; theta < maxTheta; theta++) {
-                    double radians = theta * M_PI / 180.0;
-                    int rho = (int)(x * cos(radians) + y * sin(radians));
-                    if (rho >= 0 && rho < maxTheta) {
-                        accumulator[theta]++;
-                    }
+
+            // only white /black
+            if (r > 200 && g > 200 && b > 200) 
+            {
+                for (int t = 0; t < numAngles; t++) 
+                {
+                    double theta = (t - 90) * M_PI / 180.0; // Convert angle to radians
+                    int rho = (int)(x * cos(theta) + y * sin(theta));
+                    if (rho >= 0 && rho < diag) 
+                        {angleVotes[t]++;}
                 }
             }
         }
     }
 
-    // Find the angle with the maximum votes
-    int bestTheta = 0;
+    // Find the angle with the highest votes
     int maxVotes = 0;
-    for (int theta = 0; theta < maxTheta; theta++) {
-        if (accumulator[theta] > maxVotes) {
-            maxVotes = accumulator[theta];
-            bestTheta = theta;
+    double dominantAngle = 0.0;
+    for (int t = 0; t < numAngles; t++) {
+        if (angleVotes[t] > maxVotes) {
+            maxVotes = angleVotes[t];
+            dominantAngle = (t - 90); // Convert back to degrees
         }
     }
 
-    free(accumulator);
-    return (double)bestTheta;
-
+    free(angleVotes);
+    return dominantAngle;
 }
 
-int main(int argc, char *argv[]) {
-    if (argc != 3)
+
+
+
+// Main function
+int main(int argc, char *argv[]) 
+{
+    if (argc != 3) 
     {
-        printf("Usage: %s <input_image.bmp> <output_image.bmp>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <input_image> <output_image>\n", argv[0]);
         return 1;
     }
 
-    const char *input = argv[1];
-    const char *output = argv[2];
-
-    SDL_Surface *image = loadImage(input);
-    if (!image) 
-    {
-        fprintf(stderr, "Failed to load image: %s\n", IMG_GetError());
-        IMG_Quit();
+    // Initialize SDL and SDL_image
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
+        return 1;
+    }
+    if (!(IMG_Init(IMG_INIT_PNG | IMG_INIT_JPG))) {
+        fprintf(stderr, "IMG_Init Error: %s\n", IMG_GetError());
         SDL_Quit();
         return 1;
     }
 
-    // Estimate rotation angle
-    double angle = estimateRotationAngle(image);
-    printf("Estimated rotation angle: %.2f degrees\n", angle);
+    // Load the input image
+    SDL_Surface *image = loadImage(argv[1]);
+    if (!image) {
+        fprintf(stderr, "Failed to load image: %s\n", argv[1]);
+        IMG_Quit();
+        SDL_Quit();
+        return 1;
+    }
+    printf("Starting auto-rotation detection...\n");
+    double dominantAngle = Houghangle(image);
+    printf("Detected skew angle: %.2f degrees\n", dominantAngle);
 
-    // Rotate the image
-    SDL_Surface *res = manualrota(image, angle);
-    if (!res) {
-        fprintf(stderr, "Failed to rotate image.\n");
+    // Preprocess the image to create a clean binary image
+    printf("Preprocessing the image...\n");
+    FinalFunc(image); // Apply preprocessing (from preprocess.c)
+
+    // Perform auto-rotation
+    SDL_Surface *rotatedImage = manualrota(image, -dominantAngle);
+    if (!rotatedImage) 
+    {
+        fprintf(stderr, "Auto-rotation failed.\n");
         SDL_FreeSurface(image);
         IMG_Quit();
         SDL_Quit();
         return 1;
     }
+    printf("Image rotated by %.2f degrees to correct skew.\n", dominantAngle);
 
     // Save the rotated image
-    if (SDL_SaveBMP(res, output) != 0)
-    {fprintf(stderr, "Failed to save rotated image: %s\n", SDL_GetError());}
-    else 
-    {printf("Rotated image saved to %s\n", output);}
+    if (SDL_SaveBMP(rotatedImage, argv[2]) != 0) {
+        fprintf(stderr, "Error saving rotated image: %s\n", SDL_GetError());
+    } else {
+        printf("Rotated image saved to %s.\n", argv[2]);
+    }
 
+    // Cleanup
     SDL_FreeSurface(image);
-    SDL_FreeSurface(res);
+    if (rotatedImage != image) {
+        SDL_FreeSurface(rotatedImage);
+    }
     IMG_Quit();
     SDL_Quit();
+
     return 0;
-}
+}   

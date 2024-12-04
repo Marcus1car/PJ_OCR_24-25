@@ -1,25 +1,13 @@
 #include <SDL2/SDL.h>        
 #include <SDL2/SDL_image.h>   
 #include <math.h>    
+#include "preprocess.h"
 #define M_PI 3.14159265358979323846    //Just in case      
 
-SDL_Surface* loadImage(const char* given_path) 
-{
-    if (!given_path) 
-    {
-        fprintf(stderr, "Error NULL path provided\n");
-        return NULL;
-    }
 
-    SDL_Surface* image = IMG_Load(given_path);
-    
-    if (!image) 
-    {
-    fprintf(stderr, "Error loading image '%s': %s\n",given_path, IMG_GetError()); 
-    return NULL;
-    }
-    return image;
-}
+
+
+
 SDL_Surface* manualrota(SDL_Surface *image, double angle) {
     double radians = angle * 3.141593 / 180.0;
 
@@ -68,7 +56,7 @@ SDL_Surface* manualrota(SDL_Surface *image, double angle) {
     return res;
 }
 
-int main(int argc, char *argv[]) 
+int man_rota_main(int argc, char *argv[]) 
 {
     if (argc != 3) 
     {
@@ -100,4 +88,9 @@ int main(int argc, char *argv[])
     SDL_FreeSurface(image);
     SDL_FreeSurface(res);
     return 0;
+}
+
+
+int main(int argc, char *argv[]) {
+    return man_rota_main(argc, argv);
 }
