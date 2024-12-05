@@ -7,67 +7,55 @@
 
 
 
-
-SDL_Surface* manualrota(SDL_Surface *image, double angle) {
+SDL_Surface* manualrota(SDL_Surface *image, double angle) 
+{
     double radians = angle * 3.141593 / 180.0;
+    int wid = image->w, hei = image->h;
 
-    int width = image->w;
-    int height = image->h;
+    int updateW = (int)(fabs(wid *cos(radians))+ fabs(hei* sin( radians)));
+    int updateH = (int)(fabs(wid *sin(radians))+ fabs(hei* cos( radians)));
 
-    // Calculate the new dimensions for the image to be rotated
-    int new_width = (int)(fabs(width * cos(radians)) + fabs(height * sin(radians)));
-    int new_height = (int)(fabs(width * sin(radians)) + fabs(height * cos(radians)));
+    SDL_Surface *res_image = SDL_CreateRGBSurface(0, updateW, updateH, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000 );
 
-    SDL_Surface *res = SDL_CreateRGBSurface(
-        0, new_width, new_height, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000
-    );
+    if (!res_image) return NULL;
 
-    if (!res) {
-        printf("Failed to create rotated surface: %s\n", SDL_GetError());
-        return NULL;
-    }
+    int midX = wid / 2, midY = hei / 2;
+    int res_midX = updateW / 2, res_midY = updateH / 2;
 
-    // Get the center of the coordinates of the new and the current image 
-    int middle_x_old = width / 2;
-    int middle_y_old = height / 2;
-    int middle_x_new = new_width / 2;
-    int middle_y_new = new_height / 2;
+    Uint32 *pixels = (Uint32 *)image->pixels;
+    Uint32 *res_pixels = (Uint32 *)res_image->pixels;
 
-    Uint32 *original_pixels = (Uint32 *)image->pixels;
-    Uint32 *rotated_pixels = (Uint32 *)res->pixels;
+    for (int y_new = 0; y_new < updateH; y_new++) 
+    {
+        for (int x_new = 0; x_new < updateW; x_new++) 
+        {
+            int x_old = (int)((x_new - res_midX) * cos(radians) + (y_new - res_midY) * sin(radians)) + midX;
+            int y_old = (int)(-(x_new - res_midX) * sin(radians) + (y_new - res_midY) * cos(radians)) + midY;
 
-    // Iterate through all pixels of the new image
-    for (int y_new = 0; y_new < new_height; y_new++) {
-        for (int x_new = 0; x_new < new_width; x_new++) {
-            // Calculate the current coordinates of the pixel
-            int x_old = (int)((x_new - middle_x_new) * cos(radians) + (y_new - middle_y_new) * sin(radians)) + middle_x_old;
-            int y_old = (int)(-(x_new - middle_x_new) * sin(radians) + (y_new - middle_y_new) * cos(radians)) + middle_y_old;
-
-            // If the coordinates are within the bounds then it is put in the new image
-            if (x_old >= 0 && x_old < width && y_old >= 0 && y_old < height) {
-                rotated_pixels[y_new * new_width + x_new] = original_pixels[y_old * width + x_old];
-            } else {
-                // Set to transparent for out-of-bounds pixels
-                rotated_pixels[y_new * new_width + x_new] = SDL_MapRGBA(res->format, 0, 0, 0, 0);
-            }
+            res_pixels[y_new * updateW + x_new] = 
+                (x_old >= 0 && x_old < wid && y_old >= 0 && y_old < hei) 
+                ? pixels[y_old * wid + x_old]
+                : SDL_MapRGB(res_image->format, 255, 255, 255);
         }
     }
 
-    return res;
+    return res_image;
 }
+
+
 
 int man_rota_main(int argc, char *argv[]) 
 {
-    if (argc != 3) 
+    if (argc != 4) 
     {
-        printf("Usage: %s <input_image.bmp> <angle>\n", argv[0]);
+        printf("Usage: %s <input_image.bmp> <angle> <output_image>\n", argv[0]);
         return 1;
     }
     const char *input = argv[1];
     double angle = atof(argv[2]);
 
     // Load the image
-    SDL_Surface *image = loadImage(input); // Ensure this function is defined or included
+    SDL_Surface *image = loadImage(input); 
     if (!image) 
     {
         printf("Failed to load image: %s\n", IMG_GetError());
@@ -80,8 +68,11 @@ int man_rota_main(int argc, char *argv[])
         SDL_FreeSurface(image);
         return 1;
     }
-    SDL_SaveBMP(res, "image.bmp");// Defines name of the exit file 
 
+    if (SDL_SaveBMP(res, argv[3]) != 0) 
+        {fprintf(stderr, "Error saving image: %s\n", SDL_GetError());}
+    else 
+        {printf("Rotated image saved to %s\n", argv[3]);}
 
     
     // Cleanup
