@@ -2,7 +2,7 @@
 CC = gcc
 
 # Compiler flags to include SDL2
-CFLAGS = -Wall -I/usr/include/SDL2 -D_REENTRANT
+CFLAGS = -Wall -I/usr/include/SDL2 -I. -D_REENTRANT
 
 # Linker flags for SDL2
 LDFLAGS = -lSDL2 -lSDL2_image -lm

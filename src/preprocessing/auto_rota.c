@@ -3,14 +3,34 @@
 #include <SDL2/SDL.h>        
 #include <SDL2/SDL_image.h>   
 #include <math.h>    
-#include "preprocess.h"
+#include <err.h>
+#include "preprocess_utils.h"
 
 #define M_PI 3.14159265358979323846    //Just in case    
 
 
+//Sobel matrices 
+
+int Gx[3][3] = 
+{
+    {1, 0, -1},
+    {2, 0, -2},
+    {1, 0, -1}
+};
+
+int Gy[3][3] = 
+{
+    { 1, 2, 1},
+    { 0, 0, 0},
+    {-1,-2,-1}
+};
+
+
+
+
 SDL_Surface* manualrota(SDL_Surface *image, double angle) 
 {
-    double radians = angle * 3.141593 / 180.0;
+    double radians = angle * 3.141593 / 180.0; // convert to radians
     int wid = image->w, hei = image->h;
 
     int updateW = (int)(fabs(wid *cos(radians))+ fabs(hei* sin( radians)));
@@ -23,8 +43,8 @@ SDL_Surface* manualrota(SDL_Surface *image, double angle)
     int midX = wid / 2, midY = hei / 2;
     int res_midX = updateW / 2, res_midY = updateH / 2;
 
-    Uint32 *pixels = (Uint32 *)image->pixels;
-    Uint32 *res_pixels = (Uint32 *)res_image->pixels;
+    Uint32 *pixels = (Uint32 *)image->pixels; // Original image center
+    Uint32 *res_pixels = (Uint32 *)res_image->pixels;// Rotated image center
 
     for (int y_new = 0; y_new < updateH; y_new++) 
     {
@@ -39,135 +59,216 @@ SDL_Surface* manualrota(SDL_Surface *image, double angle)
                 : SDL_MapRGB(res_image->format, 255, 255, 255);
         }
     }
-
     return res_image;
 }
 
-
-
-double Houghangle(SDL_Surface *surface) 
+//Edge detection
+SDL_Surface* Sobel_Matrix(SDL_Surface* image) 
 {
-    int width = surface->w;
-    int height = surface->h;
+    int width = image->w;
+    int height = image->h;
+    
+    // Lock surface for safe pixel access
+    if (SDL_LockSurface(image) < 0) 
+        {fprintf(stderr, "Surface lock failed - %s\n", SDL_GetError()); return NULL;}
 
+       SDL_Surface* edges = SDL_CreateRGBSurface(
+        0,                      
+        width, 
+        height, 
+        32,                     
+        0xFF000000,             
+        0x00FF0000,             
+        0x0000FF00,             
+        0x000000FF              
+    );
+    
 
-    int diag = (int)sqrt(width * width + height * height); // Diagonal length
-    int numAngles = 180; 
-
-    // Create angle accumulator
-    int *angleVotes = calloc(numAngles, sizeof(int));
-    if (!angleVotes) 
+    if (!edges) 
     {
-        fprintf(stderr, "Failed to allocate memory for angle votes.\n");
-        return 0.0;
+        SDL_UnlockSurface(image);
+        fprintf(stderr, "Error creating edge surface: %s\n", SDL_GetError());
+        return NULL;
+    }
+    
+    SDL_LockSurface(edges);
+
+    for (int y = 1; y < height - 1; y++) 
+    {
+        for (int x = 1; x < width - 1; x++) 
+        {
+            float gradientAccumX = 0, gradientAccumY = 0;
+            for (int kernelY = -1; kernelY <= 1; kernelY++) 
+            {
+                for (int kernelX = -1; kernelX <= 1; kernelX++) 
+                {
+                    Uint8 red, green, blue;
+                    SDL_GetRGB(
+                        *((Uint32*)image->pixels +(y+ kernelY) *width + (x +kernelX)), 
+                        image->format, &red, &green, &blue
+                    );
+                    float intensity = (float)blue; 
+                    gradientAccumX += intensity * Gx[kernelY+ 1][kernelX +1];
+                    gradientAccumY += intensity * Gy[kernelY+ 1][kernelX +1];
+                }
+            }
+
+
+
+            float gradientMagnitude = sqrtf(gradientAccumX * gradientAccumX + gradientAccumY * gradientAccumY);
+            gradientMagnitude = fminf(gradientMagnitude, 255.0f);
+
+
+
+            Uint8 edgeIntensity = (Uint8)gradientMagnitude;
+            *((Uint32*)edges->pixels + y * width + x) = SDL_MapRGB(edges->format, edgeIntensity, edgeIntensity, edgeIntensity);
+        }
     }
 
-    Uint32 *pixels = (Uint32 *)surface->pixels;
+    SDL_UnlockSurface(edges);
+    SDL_UnlockSurface(image);
+    return edges;
+}
 
 
+void Hough_Funtion(SDL_Surface* edges, float* voteMatrix, int maxRadius, int width, int height)
+ {
+    
+    memset(voteMatrix, 0, (2 * maxRadius * 180) * sizeof(float));
 
-
-    // Iterate through each pixel to find "white" pixels (edges)
-    for (int y = 0; y < height; y++) 
-    {
+    for (int y = 0; y < height; y++)
+     {
         for (int x = 0; x < width; x++) 
         {
             Uint8 r, g, b;
-            SDL_GetRGB(pixels[y * width + x], surface->format, &r, &g, &b);
+            SDL_GetRGB(
+                *((Uint32*)edges->pixels + y * width + x), 
+                edges->format, &r, &g, &b
+            );
 
-            // only white /black
-            if (r > 200 && g > 200 && b > 200) 
+            //Verify pixel intensity for edge
+            if (b > 0) 
             {
-                for (int t = 0; t < numAngles; t++) 
+                for (int k = 0; k < 180; k++) 
                 {
-                    double theta = (t - 90) * M_PI / 180.0; // Convert angle to radians
-                    int rho = (int)(x * cos(theta) + y * sin(theta));
-                    if (rho >= 0 && rho < diag) 
-                        {angleVotes[t]++;}
+                    // Map theta into valid range
+                     double theta = (k - 90) * (M_PI / 180.0);//convert to
+                    float radius = x * cos(theta) + y * sin(theta);
+                    // Map radius to maxRadius into radiusIndex
+                    int radiusIndex = (int)radius + maxRadius;
+                    voteMatrix[radiusIndex * 180 + k] ++;
                 }
             }
         }
     }
-
-    // Find the angle with the highest votes
-    int maxVotes = 0;
-    double dominantAngle = 0.0;
-    for (int t = 0; t < numAngles; t++) {
-        if (angleVotes[t] > maxVotes) {
-            maxVotes = angleVotes[t];
-            dominantAngle = (t - 90); // Convert back to degrees
-        }
-    }
-
-    free(angleVotes);
-    return dominantAngle;
 }
 
 
 
 
-// Main function
-int main(int argc, char *argv[]) 
+
+double Dominant_Angle(float* voteMatrix, int maxRadius, int width, int height, int cap) 
+{
+    int diag = maxRadius;  
+    int lineCount = 0;  
+    double angleSum = 0;  
+
+    for (int radIndex = 0; radIndex < 2 * diag; radIndex++) 
+    {  
+        for (int thetaIndex = 0; thetaIndex < 180; thetaIndex++) 
+        {  
+            if (voteMatrix[radIndex * 180 + thetaIndex] > cap) 
+            {
+                double angle = (thetaIndex-(90)) * (M_PI/180.0);  
+                angleSum += angle;
+                lineCount++;
+            }
+        }
+    }
+    //No lines found
+    if (lineCount == 0) { return 0.0; } 
+
+    double averageAngle = angleSum / lineCount;
+    double DomAngle = averageAngle*180.0 / M_PI;
+
+    if (DomAngle>90.0) {DomAngle-=180.0;}// Normalize angle within range
+    return DomAngle;
+}
+
+
+
+
+
+
+int main(int argc, char* argv[]) 
 {
     if (argc != 3) 
     {
         fprintf(stderr, "Usage: %s <input_image> <output_image>\n", argv[0]);
         return 1;
     }
-
-    // Initialize SDL and SDL_image
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
-        return 1;
-    }
-    if (!(IMG_Init(IMG_INIT_PNG | IMG_INIT_JPG))) {
-        fprintf(stderr, "IMG_Init Error: %s\n", IMG_GetError());
-        SDL_Quit();
-        return 1;
-    }
-
-    // Load the input image
-    SDL_Surface *image = loadImage(argv[1]);
-    if (!image) {
-        fprintf(stderr, "Failed to load image: %s\n", argv[1]);
-        IMG_Quit();
-        SDL_Quit();
-        return 1;
-    }
-    printf("Starting auto-rotation detection...\n");
-    double dominantAngle = Houghangle(image);
-    printf("Detected skew angle: %.2f degrees\n", dominantAngle);
-
-    // Preprocess the image to create a clean binary image
-    printf("Preprocessing the image...\n");
-    FinalFunc(image); // Apply preprocessing (from preprocess.c)
-
-    // Perform auto-rotation
-    SDL_Surface *rotatedImage = manualrota(image, -dominantAngle);
-    if (!rotatedImage) 
+  
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) 
     {
-        fprintf(stderr, "Auto-rotation failed.\n");
-        SDL_FreeSurface(image);
+        fprintf(stderr, "Error from SDL: %s\n", SDL_GetError());
+        return 1;
+    }
+
+    if (!(IMG_Init(IMG_INIT_PNG | IMG_INIT_JPG))) 
+    {
+        fprintf(stderr, "Error from SDL_image: %s\n", IMG_GetError());
+        SDL_Quit();
+        return 1;
+    }
+
+ 
+    SDL_Surface *image = loadImage(argv[1]);
+    if (!image) 
+    {
+        fprintf(stderr, "Failed to load image: %s\n", IMG_GetError());
         IMG_Quit();
         SDL_Quit();
         return 1;
     }
-    printf("Image rotated by %.2f degrees to correct skew.\n", dominantAngle);
 
-    // Save the rotated image
-    if (SDL_SaveBMP(rotatedImage, argv[2]) != 0) {
-        fprintf(stderr, "Error saving rotated image: %s\n", SDL_GetError());
-    } else {
-        printf("Rotated image saved to %s.\n", argv[2]);
+    FinalFunc(image);
+    SDL_Surface* edges = Sobel_Matrix(image);
+    if (!edges) 
+    {
+        printf("Sobel Matrix Edge detection failed!\n");
+        SDL_FreeSurface(image);
+        SDL_Quit();
+        return 1;
     }
 
-    // Cleanup
+ 
+    int maxR = sqrt(image->w * image->w + image->h * image->h);
+    float* voteMatrix = malloc(180 * (2 * maxR) * sizeof(float));
+ 
+    Hough_Funtion(edges, voteMatrix, maxR, edges->w, edges->h);
+    double DomAngle = Dominant_Angle(voteMatrix, maxR, edges->w, edges->h, 0);
+
+
+
+    if (!(-2 < DomAngle && DomAngle < 2)) 
+    {
+        printf("Rotation Detected: %f degrees\n", floor(DomAngle*(-9)));
+        image = manualrota(image, floor(DomAngle*(-9)));
+    }
+
+    if (SDL_SaveBMP(image, argv[2]) != 0) 
+    {
+        fprintf(stderr, "Error saving image: %s\n", SDL_GetError());
+    } 
+    else 
+    {
+        printf("Processed image saved to %s\n", argv[2]);
+    }
+
+    SDL_FreeSurface(edges);
     SDL_FreeSurface(image);
-    if (rotatedImage != image) {
-        SDL_FreeSurface(rotatedImage);
-    }
     IMG_Quit();
     SDL_Quit();
-
     return 0;
-}   
+}
+

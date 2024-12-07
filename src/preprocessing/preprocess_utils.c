@@ -1,6 +1,8 @@
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
+#include "preprocess_utils.h"
 #include <stdio.h>
+#include <stdlib.h>
+
+
 
 //----------------------------------------------------------------
 //Import function 
