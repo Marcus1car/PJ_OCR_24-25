@@ -1,282 +1,126 @@
 #include <SDL2/SDL.h>
 #include <stdio.h>
-#include <math.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <string.h>
 
-// Définition de la structure de la grille
-typedef struct {
-    int x, y, w, h; // Position et taille de la case
-} Cell;
+// Fonction pour vérifier si un pixel est noir
+int is_black(Uint32 pixel, SDL_PixelFormat *format) {
+    Uint8 r, g, b;
+    SDL_GetRGB(pixel, format, &r, &g, &b);
+    return (r == 0 && g == 0 && b == 0);
+}
 
-// Fonction pour charger une image BMP avec SDL
-SDL_Surface* load_image(const char *filename) {
+// Flood Fill pour trouver la zone d'une lettre
+void flood_fill(SDL_Surface *surface, int x, int y, Uint8 *visited, int *min_x, int *min_y, int *max_x, int *max_y) {
+    if (x < 0 || y < 0 || x >= surface->w || y >= surface->h) return;
+
+    int index = y * surface->w + x;
+    if (visited[index]) return;
+
+    Uint32 *pixels = (Uint32 *)surface->pixels;
+    SDL_PixelFormat *format = surface->format;
+
+    if (!is_black(pixels[index], format)) return;
+
+    visited[index] = 1;
+
+    // Mettre à jour les bornes de la lettre
+    if (x < *min_x) *min_x = x;
+    if (x > *max_x) *max_x = x;
+    if (y < *min_y) *min_y = y;
+    if (y > *max_y) *max_y = y;
+
+    // Appels récursifs pour les voisins
+    flood_fill(surface, x + 1, y, visited, min_x, min_y, max_x, max_y);
+    flood_fill(surface, x - 1, y, visited, min_x, min_y, max_x, max_y);
+    flood_fill(surface, x, y + 1, visited, min_x, min_y, max_x, max_y);
+    flood_fill(surface, x, y - 1, visited, min_x, min_y, max_x, max_y);
+}
+
+// Sauvegarde une lettre comme image BMP
+void save_letter(SDL_Surface *source, int min_x, int min_y, int max_x, int max_y, const char *output_dir, int letter_index) {
+    int width = max_x - min_x + 1;
+    int height = max_y - min_y + 1;
+
+    SDL_Surface *letter = SDL_CreateRGBSurface(0, width, height, source->format->BitsPerPixel,
+                                               source->format->Rmask, source->format->Gmask,
+                                               source->format->Bmask, source->format->Amask);
+
+    if (!letter) {
+        fprintf(stderr, "Erreur lors de la création de la surface pour la lettre : %s\n", SDL_GetError());
+        return;
+    }
+
+    SDL_Rect src_rect = {min_x, min_y, width, height};
+    SDL_BlitSurface(source, &src_rect, letter, NULL);
+
+    char filename[256];
+    snprintf(filename, sizeof(filename), "%s/letter_%d.bmp", output_dir, letter_index);
+    if (SDL_SaveBMP(letter, filename) != 0) {
+        fprintf(stderr, "Erreur lors de la sauvegarde de la lettre : %s\n", SDL_GetError());
+    } else {
+        printf("Lettre sauvegardée : %s\n", filename);
+    }
+
+    SDL_FreeSurface(letter);
+}
+
+// Fonction principale pour extraire les lettres
+void extract_letters(const char *filename, const char *output_dir) {
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        fprintf(stderr, "Erreur lors de l'initialisation de SDL: %s\n", SDL_GetError());
+        return;
+    }
+
     SDL_Surface *image = SDL_LoadBMP(filename);
     if (!image) {
-        printf("Erreur de chargement de l'image : %s\n", SDL_GetError());
-        exit(1);
-    }
-    return image;
-}
-
-// Fonction pour appliquer la transformée de Hough (basique)
-void hough_transform(
-    unsigned char* edge_image, int width, int height,
-    int max_dist, int max_theta, uint8_t* hough_image)
-{
-    // allocate the accumulator
-    int* accumulator = calloc(max_dist * max_theta, sizeof(int));
-
-    for (int y = 0; y < height; y++)
-    for (int x = 0; x < width; x++)
-    {
-        // if the pixel is not an edge, do nothing
-        if (edge_image[y * width + x] == 0)
-            continue;
-
-        for (int theta = 0; theta < max_theta; theta++)
-        {
-            // calculate rho for each theta
-            double rad = theta * M_PI / 180.0;
-            int dist = x * cos(rad) + y * sin(rad);
-            if(dist < 0) dist = -dist;
-            if(dist >= max_dist) 
-                continue;
-
-            // increment the accumulator for the current rho and theta
-            accumulator[dist * max_theta + theta]++;
-        }
-    }
-
-    // find the maximum value in the accumulator
-    int max = 0;
-    for (int i = 0; i < max_dist * max_theta; i++)
-    {
-        if (accumulator[i] > max)
-            max = accumulator[i];
-    }
-
-    // normalize the accumulator
-    // some loss of precision here
-    // I might need to fix this later
-    for (int i = 0; i < max_dist * max_theta; i++)
-    {
-        if (max == 0)
-            hough_image[i] = 0;
-        else
-            hough_image[i] = (uint8_t)(accumulator[i] * 255 / max);
-    }
-
-    // free the accumulator
-    free(accumulator);
-}
-
-// Fonction pour calculer la distance entre deux cases
-double calculate_distance(Cell *a, Cell *b) {
-    return sqrt(pow(a->x - b->x, 2) + pow(a->y - b->y, 2));
-}
-
-// Implémentation basique de DBSCAN
-void dbscan(SDL_Surface *image, Cell **cells, int *num_cells, double eps, int min_points) {
-    if (!image) {
-        printf("Erreur : Image n'est pas valide.\n");
+        fprintf(stderr, "Erreur lors du chargement de l'image: %s\n", SDL_GetError());
+        SDL_Quit();
         return;
     }
 
     int width = image->w;
     int height = image->h;
-    int cell_size = 20;
 
-    bool *visited = calloc(width * height, sizeof(bool));
+    Uint8 *visited = (Uint8 *)calloc(width * height, sizeof(Uint8));
     if (!visited) {
-        printf("Erreur : Allocation mémoire pour 'visited'.\n");
+        fprintf(stderr, "Erreur d'allocation de mémoire.\n");
+        SDL_FreeSurface(image);
+        SDL_Quit();
         return;
     }
 
-    bool *is_core = calloc(width * height, sizeof(bool));
-    if (!is_core) {
-        free(visited);
-        printf("Erreur : Allocation mémoire pour 'is_core'.\n");
-        return;
-    }
+    int letter_index = 0;
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            int index = y * width + x;
 
-    for (int y = 0; y < height; y += cell_size) {
-        for (int x = 0; x < width; x += cell_size) {
-            if (*num_cells >= 1000) { // Protection contre le dépassement
-                printf("Erreur : Trop de cellules détectées (limite : 1000).\n");
-                break;
+            if (!visited[index]) {
+                Uint32 *pixels = (Uint32 *)image->pixels;
+                if (is_black(pixels[index], image->format)) {
+                    // Détecter une nouvelle lettre
+                    int min_x = x, min_y = y, max_x = x, max_y = y;
+                    flood_fill(image, x, y, visited, &min_x, &min_y, &max_x, &max_y);
+
+                    // Sauvegarder la lettre
+                    save_letter(image, min_x, min_y, max_x, max_y, output_dir, letter_index++);
+                }
             }
-
-            Cell *new_cell = malloc(sizeof(Cell));
-            if (!new_cell) {
-                printf("Erreur : Allocation mémoire pour une nouvelle case.\n");
-                break;
-            }
-
-            new_cell->x = x;
-            new_cell->y = y;
-            new_cell->w = cell_size;
-            new_cell->h = cell_size;
-
-            cells[*num_cells] = new_cell;
-            (*num_cells)++;
         }
     }
 
     free(visited);
-    free(is_core);
-}
-
-// Fonction pour enregistrer chaque case comme une image
-void save_cell_images(SDL_Surface *image, Cell **cells, int num_cells, const char *output_folder) {
-    if (!image || !cells || num_cells <= 0 || !output_folder) {
-        printf("Erreur : Paramètres invalides pour l'enregistrement des images des cases.\n");
-        return;
-    }
-
-    // Créer le dossier si nécessaire
-    char command[256];
-    snprintf(command, sizeof(command), "mkdir -p %s", output_folder);
-    system(command);
-
-    for (int i = 0; i < num_cells; i++) {
-        // Extraire la sous-surface de l'image pour chaque case
-        SDL_Rect rect = { cells[i]->x, cells[i]->y, cells[i]->w, cells[i]->h };
-        SDL_Surface *cell_image = SDL_CreateRGBSurface(0, cells[i]->w, cells[i]->h, 32,
-                                                       0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
-        if (!cell_image) {
-            printf("Erreur de création de surface pour la case %d\n", i);
-            continue;
-        }
-
-        // Copier la portion de l'image vers la nouvelle surface
-        if (SDL_BlitSurface(image, &rect, cell_image, NULL) < 0) {
-            printf("Erreur de copie de surface : %s\n", SDL_GetError());
-            SDL_FreeSurface(cell_image);
-            continue;
-        }
-
-        // Enregistrer l'image de la case
-        char filename[256];
-        snprintf(filename, sizeof(filename), "%s/cell_%d.bmp", output_folder, i);
-        if (SDL_SaveBMP(cell_image, filename) < 0) {
-            printf("Erreur d'enregistrement de l'image %s : %s\n", filename, SDL_GetError());
-        }
-
-        SDL_FreeSurface(cell_image);
-    }
-}
-
-// Fonction pour reconnaître les mots à rechercher (en utilisant les cases proches)
-void recognize_words(Cell **cells, int num_cells, const char *output_folder_words, const char *output_folder_letters, SDL_Surface *image) {
-    if (!cells || num_cells <= 0 || !output_folder_words || !output_folder_letters || !image) {
-        printf("Erreur : Paramètres invalides pour la reconnaissance des mots.\n");
-        return;
-    }
-
-    // Créer les dossiers pour les mots et les lettres
-    char command[256];
-    snprintf(command, sizeof(command), "mkdir -p %s", output_folder_words);
-    system(command);
-
-    snprintf(command, sizeof(command), "mkdir -p %s", output_folder_letters);
-    system(command);
-
-    FILE *file = fopen("words.txt", "w");
-    if (!file) {
-        printf("Erreur d'ouverture du fichier des mots\n");
-        return;
-    }
-
-    int letter_count = 0; // Compteur pour les lettres
-    for (int i = 0; i < num_cells; i++) {
-        for (int j = i + 1; j < num_cells; j++) {
-            if (calculate_distance(cells[i], cells[j]) < 50) { // Seuil de proximité
-                fprintf(file, "Mot trouvé : (%d,%d) -> (%d,%d)\n", cells[i]->x, cells[i]->y, cells[j]->x, cells[j]->y);
-
-                // Enregistrer les lettres associées dans le dossier
-                SDL_Rect rect = { cells[i]->x, cells[i]->y, cells[i]->w, cells[i]->h };
-                SDL_Surface *letter_image = SDL_CreateRGBSurface(0, cells[i]->w, cells[i]->h, 32,
-                                                                 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
-                if (!letter_image) {
-                    printf("Erreur de création de surface pour la lettre %d\n", letter_count);
-                    continue;
-                }
-
-                // Copier la portion de l'image vers la nouvelle surface
-                if (SDL_BlitSurface(image, &rect, letter_image, NULL) < 0) {
-                    printf("Erreur de copie de surface : %s\n", SDL_GetError());
-                    SDL_FreeSurface(letter_image);
-                    continue;
-                }
-
-                // Enregistrer l'image de la lettre
-                char filename[256];
-                snprintf(filename, sizeof(filename), "%s/letter_%d.bmp", output_folder_letters, letter_count++);
-                if (SDL_SaveBMP(letter_image, filename) < 0) {
-                    printf("Erreur d'enregistrement de l'image %s : %s\n", filename, SDL_GetError());
-                }
-
-                SDL_FreeSurface(letter_image);
-            }
-        }
-    }
-
-    fclose(file);
-}
-// Fonction principale
-int main(int argc, char *argv[]) {
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        printf("Erreur d'initialisation SDL : %s\n", SDL_GetError());
-        return 1;
-    }
-
-    // Charger l'image
-    const char *image_file = "image.bmp";
-    SDL_Surface *image = load_image(image_file);
-
-    if (!image) {
-        printf("Erreur : Impossible de charger l'image %s\n", image_file);
-        SDL_Quit();
-        return 1;
-    }
-
-    // Initialisation des paramètres pour la transformée de Hough
-    int width = image->w;
-    int height = image->h;
-    int max_dist = (int)sqrt(width * width + height * height); // Distance max
-    int max_theta = 180; // Résolution angulaire (en degrés)
-
-    uint8_t *hough_image = malloc(max_dist * max_theta);
-    if (!hough_image) {
-        printf("Erreur d'allocation mémoire pour l'image Hough.\n");
-        SDL_FreeSurface(image);
-        SDL_Quit();
-        return 1;
-    }
-
-    unsigned char *edge_image = (unsigned char *)image->pixels;
-    hough_transform(edge_image, width, height, max_dist, max_theta, hough_image);
-
-    Cell *cells[1000];
-    int num_cells = 0;
-    dbscan(image, cells, &num_cells, 50.0, 5);
-
-    const char *cells_folder = "cells";
-    save_cell_images(image, cells, num_cells, cells_folder);
-
-    const char *words_folder = "words";
-    const char *letters_folder = "letters";
-    recognize_words(cells, num_cells, words_folder, letters_folder, image);
-
-    for (int i = 0; i < num_cells; i++) {
-        free(cells[i]);
-    }
-    free(hough_image);
     SDL_FreeSurface(image);
     SDL_Quit();
+}
 
-    printf("Traitement terminé avec succès.\n");
+// Exemple d'utilisation
+int main(int argc, char *argv[]) {
+    if (argc != 3) {
+        printf("Usage: %s <fichier.bmp> <dossier_output>\n", argv[0]);
+        return 1;
+    }
+
+    extract_letters(argv[1], argv[2]);
     return 0;
 }

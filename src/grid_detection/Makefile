@@ -1,4 +1,4 @@
-EXEC = hough_transform
+EXEC = main
 
 # Répertoire source
 SRC = detection.c

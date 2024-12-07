@@ -296,4 +296,4 @@ void FinalFunc(SDL_Surface *surface)
     }
     more_contrast(surface, noiseLevel);
     binarize(surface);
-}
+}   
