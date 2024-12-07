@@ -24,6 +24,80 @@ Network* init_ocr(size_t hidden) {
   return init_nn(IMG_H * IMG_W, hidden, OUTPUT_SIZE, RELU, SOFTMAX);
 }
 
+
+/**
+ * @brief Resize a surface to a fixed size 
+ *
+ * @param surface The surface to be resized
+ * @return a new surface
+
+*/
+SDL_Surface * resizeSurface(SDL_Surface* original){
+
+    if (original == NULL) {
+        return NULL;
+    }
+
+    // Create a new surface with the target size
+    SDL_Surface* resized = SDL_CreateRGBSurface(0, IMG_W, IMG_H, 32,
+                                                0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
+    if (!resized) {
+        SDL_Log("Failed to create target surface: %s", SDL_GetError());
+        return NULL;
+    }
+
+    // Fill the new surface with white (RGBA: 255, 255, 255, 255)
+    SDL_FillRect(resized, NULL, SDL_MapRGBA(resized->format, 255, 255, 255, 255));
+
+    // Calculate scaling factors
+    float scale_w = (float)IMG_W / original->w;
+    float scale_h = (float)IMG_H / original->h;
+    float scale = scale_w < scale_h ? scale_w : scale_h;
+
+    // Calculate the dimensions of the scaled surface
+    int scaled_w = (int)(original->w * scale);
+    int scaled_h = (int)(original->h * scale);
+
+    // Create a scaled copy of the original surface
+    SDL_Surface* scaled = SDL_CreateRGBSurface(0, scaled_w, scaled_h, 32,
+                                               0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
+    if (!scaled) {
+        SDL_Log("Failed to create scaled surface: %s", SDL_GetError());
+        SDL_FreeSurface(resized);
+        return NULL;
+    }
+
+    SDL_Rect src_rect = { 0, 0, original->w, original->h };
+    SDL_Rect dst_rect = { 0, 0, scaled_w, scaled_h };
+
+    // Perform the scaling using SDL_BlitScaled
+    if (SDL_BlitScaled(original, &src_rect, scaled, &dst_rect) < 0) {
+        SDL_FreeSurface(resized);
+        SDL_FreeSurface(scaled);
+        err(EXIT_FAILURE, "Scaling scaled surface failed: %s", SDL_GetError());
+        return NULL;
+    }
+
+    // Center the scaled surface onto the resized surface
+    dst_rect.x = (IMG_W - scaled_w) / 2;
+    dst_rect.y = (IMG_H - scaled_h) / 2;
+    dst_rect.w = scaled_w;
+    dst_rect.h = scaled_h;
+
+    // Blit the scaled surface onto the resized surface
+    if (SDL_BlitSurface(scaled, NULL, resized, &dst_rect) < 0) {
+        SDL_FreeSurface(resized);
+        SDL_FreeSurface(scaled);
+        err(EXIT_FAILURE, "Blitting scaled surface failed: %s", SDL_GetError());
+
+    }
+
+    // Free the intermediate scaled surface
+    SDL_FreeSurface(scaled);
+
+    return resized;
+
+}
 /**
  * @brief Loads an SDL_Surface from disk
  *
@@ -33,6 +107,13 @@ Network* init_ocr(size_t hidden) {
 SDL_Surface* load_image(const char* path) {
   SDL_Surface* t = IMG_Load(path);
   SDL_Surface* img = SDL_ConvertSurfaceFormat(t, SDL_PIXELFORMAT_RGB888, 0);
+  if(img == NULL) err(EXIT_FAILURE, "Error loading surface");
+  if(img->h != IMG_H || img->w != IMG_W){
+      SDL_Surface *a = resizeSurface(img);
+      SDL_FreeSurface(t);
+      SDL_FreeSurface(img);
+      return a;
+  }
   SDL_FreeSurface(t);
   return img;
 }
@@ -432,4 +513,45 @@ void print_table(Network* network, char*** path, double*** data, size_t size) {
   printf("Accuracy: %9.3lf%% (%ld/%ld) \n",
          (double)nbgood / size * 100, nbgood,
          size);
+}
+
+void print_table_2(Network* network, char*** path, double*** data, size_t size){
+  printf("File\n");
+  /*for (char k = 0; k < 26; k++)
+    printf("%c\t", k + 'A');
+  printf("\n");*/
+
+  for (size_t k = 0; k < size; k++) {
+    predict_nn(network, (*data)[k]);
+    printf("%s\t", (*path)[k]);
+    /*for (size_t f = 0; f < 26; f++) {
+      printColor(network->output[f]);
+      printf("\t");
+    }*/
+    //if (get_rank(network->output, 26, (*path)[k][0] - 'a') == 1) {
+    size_t index_max_proba = indexOfMax(network->output, 26);
+    
+    printf("Detected %c - %.3f ",(int)index_max_proba+'A', (network->output)[index_max_proba]);
+    
+
+    
+
+    printf("\n");
+  }
+
+}
+
+int compare_strings(const void* a, const void* b) {
+    const char* str_a = *(const char**)a;
+    const char* str_b = *(const char**)b;
+    return strcmp(str_a, str_b); // Compare strings lexicographically
+}
+
+// Function to sort a list of strings
+void sort_string_list(char** list, size_t count) {
+    if (!list || count == 0) {
+        fprintf(stderr, "Invalid input to sort_string_list\n");
+        return;
+    }
+    qsort(list, count, sizeof(char*), compare_strings);
 }
