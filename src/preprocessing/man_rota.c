@@ -9,7 +9,7 @@
 
 SDL_Surface* manualrota(SDL_Surface *image, double angle) 
 {
-    double radians = angle * 3.141593 / 180.0;
+    double radians = angle * 3.141593 / 180.0; // convert to radians
     int wid = image->w, hei = image->h;
 
     int updateW = (int)(fabs(wid *cos(radians))+ fabs(hei* sin( radians)));
@@ -19,8 +19,8 @@ SDL_Surface* manualrota(SDL_Surface *image, double angle)
 
     if (!res_image) return NULL;
 
-    int midX = wid / 2, midY = hei / 2;
-    int res_midX = updateW / 2, res_midY = updateH / 2;
+    int midX = wid / 2, midY = hei / 2;// Original image center
+    int res_midX = updateW / 2, res_midY = updateH / 2;// Rotated image center
 
     Uint32 *pixels = (Uint32 *)image->pixels;
     Uint32 *res_pixels = (Uint32 *)res_image->pixels;
