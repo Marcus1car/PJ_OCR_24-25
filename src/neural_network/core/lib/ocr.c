@@ -39,8 +39,7 @@ SDL_Surface* resizeSurface(SDL_Surface* original) {
   SDL_Surface* resized = SDL_CreateRGBSurface(
       0, IMG_W, IMG_H, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
   if (!resized) {
-    SDL_Log("Failed to create target surface: %s", SDL_GetError());
-    return NULL;
+    err(EXIT_FAILURE, "Failed to create target surface: %s", SDL_GetError());
   }
   SDL_FillRect(resized, NULL, SDL_MapRGBA(resized->format, 255, 255, 255, 255));
 
@@ -55,9 +54,8 @@ SDL_Surface* resizeSurface(SDL_Surface* original) {
       SDL_CreateRGBSurface(0, scaled_w, scaled_h, 32, 0x00FF0000, 0x0000FF00,
                            0x000000FF, 0xFF000000);
   if (!scaled) {
-    SDL_Log("Failed to create scaled surface: %s", SDL_GetError());
     SDL_FreeSurface(resized);
-    return NULL;
+    err(EXIT_FAILURE, "Failed to create scaled surface: %s", SDL_GetError());
   }
 
   SDL_Rect src_rect = {0, 0, original->w, original->h};
@@ -67,7 +65,6 @@ SDL_Surface* resizeSurface(SDL_Surface* original) {
     SDL_FreeSurface(resized);
     SDL_FreeSurface(scaled);
     err(EXIT_FAILURE, "Scaling scaled surface failed: %s", SDL_GetError());
-    return NULL;
   }
 
   dst_rect.x = (IMG_W - scaled_w) / 2;
