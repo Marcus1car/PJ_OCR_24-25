@@ -2,9 +2,15 @@
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
 
+
+
+
 //----------------------------------------------------------------
 //Import function 
 //----------------------------------------------------------------
+
+
+/*
 SDL_Surface* loadImage(const char* given_path) 
 {
     if (!given_path) 
@@ -23,13 +29,49 @@ SDL_Surface* loadImage(const char* given_path)
     return image;
 }
 
+*/
+
+
+SDL_Surface* loadImage(const char* path)
+ {
+    SDL_Surface* t = IMG_Load(path);
+    SDL_Surface* img = SDL_ConvertSurfaceFormat(t, SDL_PIXELFORMAT_RGB888, 0);
+    if (!img) 
+    {
+    fprintf(stderr, "Error loading image '%s': %s\n",path, IMG_GetError()); 
+    return NULL;
+    }
+
+    SDL_FreeSurface(t);
+    return img;
+}
+
+
 
 
 //----------------------------------------------------------------
 //Denoise  function 
 //----------------------------------------------------------------
+
+
+
+
 double noiselevel_weighted(SDL_Surface *surface) 
 {
+
+
+    if (!surface || !surface->pixels)
+    {
+        fprintf(stderr, "Invalid surface pointer.\n");
+        return -1.0; 
+    }
+    if (SDL_LockSurface(surface) < 0) 
+    {
+        fprintf(stderr, "Surface lock failed - %s\n", SDL_GetError());
+        return -1.0; // Handle lock failure
+    }
+
+
     Uint32 *pixels = (Uint32 *)surface->pixels;
     double sumsq = 0.0;
     double sum = 0.0;
@@ -48,8 +90,11 @@ double noiselevel_weighted(SDL_Surface *surface)
     }
     double mean = sum/totpix;
     double var = (sumsq/totpix)-(mean*mean);
+    SDL_UnlockSurface(surface);
     return sqrt(var);
 }
+
+
 
 // Helper function to sort 
 void sortFilter(Uint8 close[], int size) 
