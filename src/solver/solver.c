@@ -11,18 +11,6 @@
 #define MAX_LINE_LENGTH 100
 #define MAX_LINES 100
 
-typedef struct Word_Cord
-{
-  int start_x;
-  int start_y;
-  int end_x;
-  int end_y;
-
-
-
-} Word_Cord;
-
-
 /**
  * @brief return a char[][], a grid of the crossword from a file.
  *
@@ -176,27 +164,33 @@ char* ConvertWordToLower(const char* word) {
   return mot_min;
 }
 
-int count_lines(char **array) {
-    int count = 0;
-    while (array[count] != NULL) {
-        count++;
-    }
-    return count;
-}
-
-Word_Cord solver(char* word, char** grid) 
-{
-  char* resword = calloc(strlen(word) + 1, sizeof(char));
-  char* test = ConvertWordToLower(word);
+int main(int argc, char** argv) {
+  if (argc != 3)
+    errx(EXIT_FAILURE, "Usage: ./solver <grid_file> <researched word>");
+  char* resword = calloc(strlen(argv[2]) + 1, sizeof(char));
+  char* test = ConvertWordToLower(argv[2]);
   strcpy(resword, test);
   free(test);
-  int nblignetab = count_lines(grid);
+  int nblignetab = CountNumLines(argv[1]);
+  if (nblignetab == -1) {
+    free(resword);
+    return 1;
+  }
+  char** grid_file = ReadGridFromFile(argv[1], &nblignetab);
+  char** grid = ConvertToLowerGrid(grid_file, nblignetab);
+  for (size_t k = 0; k < nblignetab; k++)
+    free(grid_file[k]);
+  free(grid_file);
+  if (grid == NULL) {
+    free(resword);
+    return 1;
+  }
   int i = 0, j = 0;
   int index = 0;
   bool searching = false;
   int tempi = 0, tempj = 0;
   int reswordCount = strlen(resword);
-  int nbcharinline = strlen(grid[0]);
+  int nbcharinline = CountCharInLine(argv[1]);
   while (true) {
     if (!searching) {
       if (resword[0] == grid[i][j]) {
@@ -257,19 +251,10 @@ Word_Cord solver(char* word, char** grid)
             }
           }
           if (index == reswordCount) {
-            Word_Cord res = 
-            {
-              .start_x = j,
-              .start_y = i,
-              .end_x = tempj,
-              .end_y = tempi+1,
-
-
-
-            };
+            printf("(%d,%d)(%d,%d)\n", j, i, tempj, tempi + 1);
             FreeBoard(grid, nblignetab);
             free(resword);
-            return res;
+            return 0;
           }
         }
       }
@@ -439,4 +424,3 @@ Word_Cord solver(char* word, char** grid)
   free(resword);
   return 1;
 }
-
