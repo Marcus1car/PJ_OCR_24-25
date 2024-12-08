@@ -7,7 +7,7 @@ NVC_PMGMT = -acc
 
 
 CC = gcc
-CC_FLAGS = -Wall -Wextra -Wpedantic -Wshadow -Wformat -Winit-self -Wuninitialized -Wmissing-include-dirs -Wparentheses -Wunused -Wmaybe-uninitialized -std=c17 -fsanitize=address -g -O2
+CC_FLAGS = -Wall -Wextra -Wshadow -Wformat -Winit-self -Wuninitialized -Wmissing-include-dirs -Wparentheses -Wunused -Wmaybe-uninitialized -std=c17 -fsanitize=address -g -O2
 LIBS = -lm
 SDL_LIBS = -lSDL2 -lSDL2_image
 BUILD_DIR = ./build/
