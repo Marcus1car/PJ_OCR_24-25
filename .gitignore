@@ -10,3 +10,4 @@ a.out
 build/
 .env
 bin/
+valgrind-out.txt

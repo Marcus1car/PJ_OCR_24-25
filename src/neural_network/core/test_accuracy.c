@@ -56,5 +56,8 @@ int main(int argc, char** argv) {
   for (size_t k = 0; k < sample_testing_size; k++)
     free(testing_img_path[k]);
   free(testing_img_path);
+  for(size_t k = 0;  k < sample_testing_size; k++)
+    free(testing_data[k]);
+  free(testing_data);
   return EXIT_SUCCESS;
 }
