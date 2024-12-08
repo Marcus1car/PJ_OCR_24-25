@@ -1,30 +1,38 @@
 #include <gtk/gtk.h>
 #include <SDL2/SDL.h>
 #include "../preprocessing/preprocess.h"
-
-typedef enum State 
-{
-  START,
-  DONE,
-} State;
+#include "../preprocessing/man_rota.c"
+#include "../neural_network/core/lib/ocr.h"
+#include "../neural_network/core/lib/core_network.h"
+#include "../solver/solver.h"
 
 
 typedef struct UserInterface 
 {
-    GtkWindow* window;
-    GtkImage* displayed_image;
+    GtkWindow* first_window;
+    GtkWindow* main_window;
+    GtkWindow* rotate_window;
+    GtkWidget* file_chooser;
+    GtkWidget* file_chooser_nn;
+    GtkButton* file_select_button;
     GtkButton* solve_button;
+    GtkButton* open_rotate_window_button;
     GtkButton* preprocess_button;
     GtkButton* grid_detector_button;
-    GtkButton* upload_button;
-    GtkEntry* text_entry;
-    GtkButton* open_rotate_windows_button;
-    GtkWindow* rotate_window;
-    const gchar *filename;
-    State state;
-    GtkButton* left_button;
-    GtkButton* right_button;
-    GtkEntry* text_entry_rotate;
+    GtkButton* remove_button;
+    GtkButton* rotate_button;
+    GtkButton* select_file_select_button;
+    GtkButton* select_file_cancel_button;
+    GtkButton* select_file_cancel_button_nn;
+    GtkButton* select_file_select_button_nn;
+    GtkEntry* degree_entry;
+    GtkImage* displayed_image;
+    const char* filename;
+    const char* degree;
+    const char* filename_nn;
+    Network* neural_network;
+
+
 } UserInterface;
 
 
@@ -131,6 +139,24 @@ void update_displayed_image_with_sdl(UserInterface* UI, SDL_Surface* surface) {
     g_object_unref(new_image);
 }
 
+int is_all_digits(const char *str) 
+{
+    if (str == NULL || *str == '\0')
+    {
+        return 0; 
+    }
+
+    while (*str) 
+    { 
+        if (!isdigit((unsigned char)*str)) 
+        {
+            return 0; 
+        }
+        str++; 
+    }
+    return 1; 
+}
+
 
 
 
@@ -161,7 +187,7 @@ void show_grid(GtkButton *button, gpointer user_data)
 
     // TO DO
     
-    gtk_widget_set_visible(GTK_WIDGET(UI->solve_button), TRUE);
+    
 
 }
 
@@ -173,57 +199,105 @@ void open_rotate_window(GtkButton *button, gpointer user_data)
 
 }
 
-void upload_image(GtkButton *button, gpointer user_data)
+void file_select(GtkButton *button, gpointer user_data)
 {
+
     UserInterface* UI = user_data;
 
-    if (UI->state == START)
-    {
-        UI->filename = gtk_entry_get_text(GTK_ENTRY(UI->text_entry));
+    gtk_widget_show(GTK_WIDGET(UI->file_chooser));
+
+    
+}
+
+void file_select_nn(GtkButton *button, gpointer user_data)
+{
+
+    UserInterface* UI = user_data;
+
+    gtk_widget_show(GTK_WIDGET(UI->file_chooser_nn));
+
+    
+}
+
+
+
+void select_file_select_nn(GtkButton *button, gpointer user_data)
+{
+
+    UserInterface* UI = user_data;
+
+    GtkFileChooser *chooser = GTK_FILE_CHOOSER(UI->file_chooser_nn);
+    UI->filename_nn = gtk_file_chooser_get_filename(chooser);
+    UI->neural_network = load_nn_data(UI->filename_nn);
+    gtk_widget_set_visible(GTK_WIDGET(UI->solve_button), TRUE);
+    gtk_widget_hide(GTK_WIDGET(UI->file_chooser_nn));
+        
+
+}
+void select_file_select(GtkButton *button, gpointer user_data)
+{
+
+    UserInterface* UI = user_data;
+
+        GtkFileChooser *chooser = GTK_FILE_CHOOSER(UI->file_chooser);
+        UI->filename = gtk_file_chooser_get_filename(chooser);
+        
         if (g_file_test(UI->filename, G_FILE_TEST_EXISTS)) 
         {
             gtk_image_set_from_file(UI->displayed_image, UI->filename);
-            gtk_button_set_label(UI->upload_button,"Remove Image");
-            UI->state = DONE;
-            gtk_widget_set_visible(GTK_WIDGET(UI->preprocess_button), TRUE);
-            gtk_widget_set_visible(GTK_WIDGET(UI->open_rotate_windows_button), TRUE);
-            g_print("Image successfully loaded from: %s\n", UI->filename);
+            gtk_window_present(GTK_WINDOW(UI->main_window));
+            gtk_widget_show_all(GTK_WIDGET(UI->main_window));
+            gtk_widget_hide(GTK_WIDGET(UI->first_window));
+            gtk_widget_hide(GTK_WIDGET(UI->solve_button));
+            gtk_widget_hide(GTK_WIDGET(UI->grid_detector_button));
+
         }
         else 
         {
-            g_print("Error: File does not exist or invalid path.\n");
+            g_print("File do not exist : %s\n", UI->filename);
         }
-    }
-    else
+    gtk_widget_hide(GTK_WIDGET(UI->file_chooser));
+}
+
+void remove_image(GtkButton *button, gpointer user_data)
+{
+    UserInterface* UI = user_data;
+
+    gtk_image_clear(UI->displayed_image);
+    gtk_window_present(GTK_WINDOW(UI->first_window));
+    gtk_widget_show_all(GTK_WIDGET(UI->first_window));
+    gtk_widget_hide(GTK_WIDGET(UI->main_window));
+}
+
+
+void rotate_button_f(GtkButton *button, gpointer user_data)
+{
+    UserInterface* UI = user_data;
+    UI->degree = gtk_entry_get_text(UI->degree_entry);
+    if (is_all_digits(UI->degree))
     {
+        int k = atoi(UI->degree);
+        double j = (double)k;
+        SDL_Surface* m = gtk_image_to_sdl_surface(UI->displayed_image);
+        m = manualrota(m,j);
+        update_displayed_image_with_sdl(UI,m);
 
-        gtk_image_clear(UI->displayed_image);
-        UI->state = START;
-        gtk_window_resize(GTK_WINDOW(UI->window), 800, 600);
-        gtk_window_set_position(GTK_WINDOW(UI->window), GTK_WIN_POS_CENTER);
-        gtk_button_set_label(UI->upload_button,"Upload Image");
-        gtk_widget_set_visible(GTK_WIDGET(UI->preprocess_button), FALSE);
-        gtk_widget_set_visible(GTK_WIDGET(UI->solve_button), FALSE);
-        gtk_widget_set_visible(GTK_WIDGET(UI->grid_detector_button), FALSE);
-        gtk_widget_set_visible(GTK_WIDGET(UI->open_rotate_windows_button), FALSE);
+
 
     }
-}
-
-void on_left_button_clicked(GtkButton *button, gpointer user_data) 
-{
-    
-
-
 
 }
 
-void on_right_button_clicked(GtkButton *button, gpointer user_data) 
+void select_file_cancel(GtkButton *button, gpointer user_data) 
 {
+    UserInterface* UI = user_data;
+    gtk_widget_hide(UI->file_chooser); 
+}
 
-
-
-    
+void select_file_cancel_nn(GtkButton *button, gpointer user_data) 
+{
+    UserInterface* UI = user_data;
+    gtk_widget_hide(UI->file_chooser_nn); 
 }
 
 
@@ -240,48 +314,71 @@ int main(int argc, char* argv[])
     }
 
     // Widgets
-    GtkWindow* window = GTK_WINDOW(gtk_builder_get_object(builder, "org.gtk.gui"));
-    GtkButton* solve_button = GTK_BUTTON(gtk_builder_get_object(builder, "solve_button"));
-    GtkButton* grid_detector_button = GTK_BUTTON(gtk_builder_get_object(builder, "grid_detector_button"));
-    GtkButton* upload_button = GTK_BUTTON(gtk_builder_get_object(builder, "upload_button"));
-    GtkButton* preprocess_button = GTK_BUTTON(gtk_builder_get_object(builder, "preprocess_button"));
-    GtkEntry* text_entry = GTK_ENTRY(gtk_builder_get_object(builder, "text_entry"));
-    GtkImage* displayed_image = GTK_IMAGE(gtk_builder_get_object(builder, "displayed_image"));
-    GtkButton* open_rotate_windows_button = GTK_BUTTON(gtk_builder_get_object(builder, "open_rotate_windows_button"));
+    GtkWindow* first_window = GTK_WINDOW(gtk_builder_get_object(builder, "first_window"));
+    GtkWindow* main_window = GTK_WINDOW(gtk_builder_get_object(builder, "main_window"));
     GtkWindow* rotate_window = GTK_WINDOW(gtk_builder_get_object(builder, "rotate_window"));
-    GtkButton* left_button = GTK_BUTTON(gtk_builder_get_object(builder, "left_button"));
-    GtkButton* right_button = GTK_BUTTON(gtk_builder_get_object(builder, "right_button"));
-    GtkEntry* text_entry_rotate = GTK_ENTRY(gtk_builder_get_object(builder, "text_entry_rotate"));
+    GtkWidget* file_chooser = GTK_WIDGET(gtk_builder_get_object(builder, "file_chooser"));
+    GtkWidget* file_chooser_nn = GTK_WIDGET(gtk_builder_get_object(builder, "file_chooser_nn"));
+
+    GtkButton* file_select_button = GTK_BUTTON(gtk_builder_get_object(builder, "file_select_button"));
+    GtkButton* file_select_button_nn = GTK_BUTTON(gtk_builder_get_object(builder, "file_select_button_nn"));
+    GtkButton* solve_button = GTK_BUTTON(gtk_builder_get_object(builder, "solve_button"));
+    GtkButton* open_rotate_window_button = GTK_BUTTON(gtk_builder_get_object(builder, "open_rotate_window_button"));
+    GtkButton* preprocess_button = GTK_BUTTON(gtk_builder_get_object(builder, "preprocess_button"));
+    GtkButton* grid_detector_button = GTK_BUTTON(gtk_builder_get_object(builder, "grid_detector_button"));
+    GtkButton* remove_button = GTK_BUTTON(gtk_builder_get_object(builder, "remove_button"));
+    GtkButton* rotate_button = GTK_BUTTON(gtk_builder_get_object(builder, "rotate_button"));
+    GtkButton* select_file_cancel_button = GTK_BUTTON(gtk_builder_get_object(builder, "select_file_cancel_button"));
+    GtkButton* select_file_select_button = GTK_BUTTON(gtk_builder_get_object(builder, "select_file_select_button"));
+    GtkButton* select_file_cancel_button_nn = GTK_BUTTON(gtk_builder_get_object(builder, "select_file_cancel_button_nn"));
+    GtkButton* select_file_select_button_nn = GTK_BUTTON(gtk_builder_get_object(builder, "select_file_select_button_nn"));
+
+    GtkEntry* degree_entry = GTK_ENTRY(gtk_builder_get_object(builder, "degree_entry"));
+
+
+    GtkImage* displayed_image = GTK_IMAGE(gtk_builder_get_object(builder, "displayed_image"));
 
 
     // Structure UserInterface
     UserInterface UI = 
     {
-        .window = window,
-        .solve_button = solve_button,
-        .grid_detector_button = grid_detector_button,
-        .displayed_image = displayed_image,
-        .text_entry = text_entry,
-        .upload_button = upload_button,
-        .preprocess_button = preprocess_button,
-        .filename = NULL,
-        .state = START,
-        .open_rotate_windows_button = open_rotate_windows_button,
+        .first_window = first_window,
+        .main_window = main_window,
         .rotate_window = rotate_window,
-        .left_button = left_button,
-        .right_button = right_button,
-        .text_entry_rotate = text_entry_rotate,
+        .file_chooser = file_chooser,
+        .file_chooser_nn = file_chooser_nn,
+        .file_select_button = file_select_button,
+        .solve_button = solve_button,
+        .open_rotate_window_button = open_rotate_window_button,
+        .preprocess_button = preprocess_button,
+        .grid_detector_button = grid_detector_button,
+        .remove_button = remove_button,
+        .rotate_button = rotate_button,
+        .degree_entry = degree_entry,
+        .displayed_image = displayed_image,
+        .select_file_select_button = select_file_select_button,
+        .select_file_cancel_button = select_file_cancel_button,
+        .select_file_cancel_button_nn = select_file_cancel_button_nn,
+        .select_file_select_button_nn = select_file_select_button_nn,
+        .neural_network = NULL,
+
     };
 
     // Connect the signals
-    g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
+    g_signal_connect(main_window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
+    g_signal_connect(first_window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
     g_signal_connect(solve_button, "clicked", G_CALLBACK(solve_grid), &UI);
     g_signal_connect(grid_detector_button, "clicked", G_CALLBACK(show_grid), &UI);
-    g_signal_connect(upload_button, "clicked", G_CALLBACK(upload_image), &UI);
+    g_signal_connect(remove_button, "clicked", G_CALLBACK(remove_image), &UI);
     g_signal_connect(preprocess_button, "clicked", G_CALLBACK(preprocess_grid), &UI);
-    g_signal_connect(open_rotate_windows_button, "clicked", G_CALLBACK(open_rotate_window), &UI);
-    g_signal_connect(left_button, "clicked", G_CALLBACK(on_left_button_clicked), &UI);
-    g_signal_connect(right_button, "clicked", G_CALLBACK(on_right_button_clicked), &UI);
+    g_signal_connect(open_rotate_window_button, "clicked", G_CALLBACK(open_rotate_window), &UI);
+    g_signal_connect(rotate_button, "clicked", G_CALLBACK(rotate_button_f), &UI);
+    g_signal_connect(file_select_button, "clicked", G_CALLBACK(file_select), &UI);
+    g_signal_connect(select_file_select_button, "clicked", G_CALLBACK(select_file_select), &UI);
+    g_signal_connect(select_file_cancel_button, "clicked", G_CALLBACK(select_file_cancel), &UI);
+    g_signal_connect(file_select_button_nn, "clicked", G_CALLBACK(file_select_nn), &UI);
+    g_signal_connect(select_file_select_button_nn, "clicked", G_CALLBACK(select_file_select_nn), &UI);
+    g_signal_connect(select_file_cancel_button_nn, "clicked", G_CALLBACK(select_file_cancel_nn), &UI);
 
     // Loop
     gtk_main();
