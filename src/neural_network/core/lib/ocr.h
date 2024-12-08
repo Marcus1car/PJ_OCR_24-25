@@ -32,5 +32,8 @@ void swap(double** a, double** b);
 double* get_target(const char* filename);
 char** get_filenames_in_dir(const char* path, size_t* size);
 void print_table(Network* network, char*** path, double*** data, size_t size);
-
+void sort_string_list(char** list, size_t count);
+int compare_strings(const void* a, const void* b);
+void print_table_2(Network* network, char*** path, double*** data, size_t size);
+SDL_Surface * resizeSurface(SDL_Surface* original);
 #endif

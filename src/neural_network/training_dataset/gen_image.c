@@ -312,15 +312,15 @@ void generate_dataset_from_fonts(const char* font_folder,
         }
 
         for (char letter = 'A'; letter <= 'Z'; ++letter) {
-          for (size_t k = 0; k < 30; k++) {
+          for (size_t k = 0; k < 10; k++) {
             char output_path[512];
-            int random_number = (rand() % 61) - 30;
+            int random_number = (rand() % 30) - 15;
             snprintf(output_path, sizeof(output_path), "%s/%c_%d_%s_n%d.png",
                      output_folder, letter - 'A' + 'a', k, ent->d_name,
                      noise_intensity);
             render_and_save_letter(renderer, font, letter, output_path,
                                    (double)random_number, noise_intensity,
-                                   rand() % 2);
+                                   /*rand() % 2*/1);
           }
         }
 

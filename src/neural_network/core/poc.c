@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
                           {1, 0, 0, 1, 1, 0},
                           {1, 0, 0, 1, 1, 0},
                           {1, 0, 1, 0, 0, 1}};
-  print_nn(network);
+  //print_nn(network);
   printf("[I]: Results after initializing NN with random values\n");
   print_res(inputs, network);
 
